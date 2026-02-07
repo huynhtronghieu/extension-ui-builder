@@ -102,6 +102,7 @@
       type: 'GEMINI_GENERATE_REQUEST',
       prompt: message.prompt,
       isElementEdit: message.isElementEdit || false,
+      isModification: message.isModification || false,
       modelType: message.modelType || 'flash',
       conversationId: message.conversationId,
       responseId: message.responseId,

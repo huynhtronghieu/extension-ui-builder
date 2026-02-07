@@ -95,14 +95,19 @@
   }
 
   // Build optimized prompt for HTML generation
-  function buildOptimizedPrompt(userPrompt, isElementEdit = false) {
-    // For element edits, the prompt already has specific instructions
-    // Don't wrap it with full-HTML generation instructions
-    if (isElementEdit) {
+  function buildOptimizedPrompt(userPrompt, options = {}) {
+    // For element edits, the prompt already has specific instructions from options.js
+    if (options.isElementEdit) {
       return userPrompt;
     }
     
-    // Use a more direct prompt that forces immediate HTML output
+    // For modification prompts, options.js already built the full prompt with HTML context
+    // Don't wrap with generic "generate new page" instructions
+    if (options.isModification) {
+      return userPrompt;
+    }
+    
+    // First-time generation: use a direct prompt that forces immediate HTML output
     return `Generate HTML code only. No explanation, no markdown, no thinking.
     
 Requirements: ${userPrompt}
@@ -119,7 +124,7 @@ Start your response with exactly: <!DOCTYPE html>`;
 
   // Build request body - match the curl format
   function buildRequestBody(prompt, options = {}) {
-    const optimizedPrompt = buildOptimizedPrompt(prompt, options.isElementEdit);
+    const optimizedPrompt = buildOptimizedPrompt(prompt, { isElementEdit: options.isElementEdit, isModification: options.isModification });
     const uuid = generateUUID();
     
     // Use ONLY the per-page conversation context passed via options.
@@ -743,10 +748,12 @@ Start your response with exactly: <!DOCTYPE html>`;
       console.log('Model type:', event.data.modelType);
       console.log('Page ID:', event.data.pageId);
       console.log('Is element edit:', event.data.isElementEdit);
+      console.log('Is modification:', event.data.isModification);
       
       generateHTML(event.data.prompt, {
         modelType: event.data.modelType,
         isElementEdit: event.data.isElementEdit || false,
+        isModification: event.data.isModification || false,
         conversationId: event.data.conversationId,
         responseId: event.data.responseId,
         choiceId: event.data.choiceId

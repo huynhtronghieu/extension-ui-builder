@@ -534,26 +534,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get page data for conversation context
     const page = await htmlDB.getPage(currentPageId);
 
-    // If user reverted to a previous version, prepend context about current HTML state
+    // Include current HTML context when modifying an existing page
     let finalPrompt = prompt;
-    if (isReverted && currentHTML && !selectedPath) {
+    let isModification = false;
+    if (currentHTML && !selectedPath) {
       // Truncate HTML if too long to fit in prompt context
-      const maxHtmlContext = 6000;
+      const maxHtmlContext = 15000;
       let htmlContext = currentHTML;
       if (htmlContext.length > maxHtmlContext) {
         htmlContext = htmlContext.substring(0, maxHtmlContext) + '\n... (truncated)';
       }
       
-      finalPrompt = `IMPORTANT CONTEXT: I have reverted my HTML page to a previous version. Below is the CURRENT HTML code that I'm working with. Please use this as the base and apply my new request on top of it.
+      const revertNote = isReverted ? '\nNOTE: I have reverted to a previous version of this page. ' : '';
+      
+      finalPrompt = `IMPORTANT: Below is my CURRENT HTML page. Modify it according to my request. Do NOT create a new page from scratch. Keep all existing structure, styles and content that are not related to my request.${revertNote}
 
 CURRENT HTML CODE:
 ${htmlContext}
 
-NEW REQUEST: ${prompt}
+MODIFICATION REQUEST: ${prompt}
 
-Please return the COMPLETE updated HTML file incorporating my request above. Start with <!DOCTYPE html>.`;
+RULES:
+- Keep ALL existing HTML structure, styles, and content intact
+- ONLY change what is specifically requested
+- Return the COMPLETE modified HTML file
+- Start with <!DOCTYPE html>`;
       
-      console.log('Sending revert context to Gemini, HTML length:', currentHTML.length);
+      isModification = true;
+      console.log('Sending modification prompt with HTML context, length:', currentHTML.length);
     }
     
     // If element is selected, modify the prompt for element-specific editing
@@ -602,6 +610,7 @@ NEW INNER HTML:`;
       type: 'GENERATE_HTML',
       prompt: finalPrompt,
       isElementEdit: !!selectedPath,
+      isModification: isModification,
       modelType: modelType, // 'flash' or 'thinking'
       pageId: currentPageId,
       conversationId: page?.conversationId ?? '',
