@@ -6,14 +6,14 @@
   
   // Check if already initialized
   if (window.__geminiHtmlBuilderInitialized) {
-    console.log('Gemini HTML Builder: Re-injecting script...');
+    console.log('UI Builder từ Gemini AI: Re-injecting script...');
     // Just re-inject the page script
     injectPageScript();
     return;
   }
   window.__geminiHtmlBuilderInitialized = true;
   
-  console.log('Gemini HTML Builder: Content script loaded at', new Date().toISOString());
+  console.log('UI Builder từ Gemini AI: Content script loaded at', new Date().toISOString());
 
   // State
   let isGenerating = false;

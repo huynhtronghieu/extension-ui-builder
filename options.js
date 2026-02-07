@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Generation state
   let isGenerating = false;
+  let lastPromptText = ''; // Store prompt text before clearing input
   
   // Inspect mode state
   let isInspectMode = false;
@@ -542,6 +543,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.generateBtn.classList.add('loading');
     elements.generateBtn.disabled = true;
     
+    // Store prompt text before clearing (for history saving later)
+    lastPromptText = prompt;
+    
     // Clear and disable prompt input during generation
     elements.promptInput.value = '';
     elements.promptInput.disabled = true;
@@ -778,10 +782,9 @@ NEW INNER HTML:`;
             revertedFromPrompt = '';
             
             // Save to IndexedDB with page ID
-            const prompt = elements.promptInput.value.trim();
             if (currentPageId) {
-              await htmlDB.saveHTML(currentPageId, prompt, currentHTML);
-              await htmlDB.updatePage(currentPageId, { lastHtml: currentHTML, lastPrompt: prompt });
+              await htmlDB.saveHTML(currentPageId, lastPromptText, currentHTML);
+              await htmlDB.updatePage(currentPageId, { lastHtml: currentHTML, lastPrompt: lastPromptText });
             }
             
             // Reload history
@@ -807,10 +810,9 @@ NEW INNER HTML:`;
         revertedFromPrompt = '';
         
         // Save to IndexedDB with page ID
-        const prompt = elements.promptInput.value.trim();
         if (currentPageId) {
-          await htmlDB.saveHTML(currentPageId, prompt, html);
-          await htmlDB.updatePage(currentPageId, { lastHtml: html, lastPrompt: prompt });
+          await htmlDB.saveHTML(currentPageId, lastPromptText, html);
+          await htmlDB.updatePage(currentPageId, { lastHtml: html, lastPrompt: lastPromptText });
         }
         
         // Update preview
@@ -1092,7 +1094,7 @@ NEW INNER HTML:`;
   document.addEventListener('click', (e) => {
     if (!isGenerating) return;
     
-    const target = e.target.closest('button, select, .page-item, .history-item, a, [role="button"]');
+    const target = e.target.closest('button, select, .page-item, .history-item, a, [role="button"], #modelToggle');
     if (!target) return;
     // Allow nothing except reading — block all interactive clicks
     if (target === elements.generateBtn) return; // already handled by its own disabled state

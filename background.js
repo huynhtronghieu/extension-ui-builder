@@ -309,4 +309,4 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-console.log('Gemini HTML Builder background script loaded');
+console.log('UI Builder từ Gemini AI background script loaded');

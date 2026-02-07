@@ -252,32 +252,30 @@ body {
   z-index: 1000;
 }
 
-.btn-icon::before {
-  content: '';
-  position: absolute;
-  bottom: calc(100% + 2px);
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: var(--border-color);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s, visibility 0.2s;
-  pointer-events: none;
-  z-index: 1001;
-}
-
 .btn-icon:hover::after,
 .btn-icon:hover::before {
   opacity: 1;
   visibility: visible;
 }
 
+/* Panel header tooltips: show below to avoid clipping by overflow containers */
+.panel-actions .btn-icon::after {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+.panel-actions .btn-icon::before {
+  bottom: auto;
+  top: calc(100% + 2px);
+  border-top-color: transparent;
+  border-bottom-color: var(--border-color);
+}
+
 /* Tooltip position adjustment for buttons near edges */
 .btn-clear::after {
   content: attr(title);
   position: absolute;
-  bottom: calc(100% + 8px);
+  top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-secondary);
@@ -471,7 +469,7 @@ body {
   background: var(--bg-secondary);
   border-radius: 12px;
   border: 1px solid var(--border-color);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .section-header {
@@ -483,6 +481,13 @@ body {
   font-size: 13px;
   font-weight: 600;
   color: var(--accent-secondary);
+  border-radius: 11px 11px 0 0;
+}
+
+.section-content:last-child,
+.page-list-container:last-child,
+.history-list:last-child {
+  border-radius: 0 0 11px 11px;
 }
 
 .section-header svg {
@@ -514,7 +519,7 @@ body {
 
 .page-list-container {
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .page-list {
@@ -598,7 +603,7 @@ body {
   color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.2s, color 0.2s;
   position: relative;
 }
@@ -620,8 +625,9 @@ body {
 .page-item-delete::after {
   content: attr(title);
   position: absolute;
-  bottom: calc(100% + 6px);
-  right: 0;
+  top: 50%;
+  right: calc(100% + 6px);
+  transform: translateY(-50%);
   background: var(--bg-secondary);
   color: var(--text-primary);
   padding: 5px 8px;
@@ -695,7 +701,8 @@ body {
 }
 
 .model-toggle-option.active {
-  color: var(--bg-primary);
+  color: var(--bg-secondary);
+  font-weight: 600;
 }
 
 .model-toggle-slider {
@@ -704,7 +711,7 @@ body {
   left: 2px;
   width: calc(50% - 2px);
   height: calc(100% - 4px);
-  background: var(--accent-gradient);
+  background: var(--text-primary);
   border-radius: 6px;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
@@ -805,7 +812,7 @@ body {
   color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.2s, color 0.2s;
   position: relative;
 }
@@ -827,8 +834,9 @@ body {
 .history-item-delete::after {
   content: attr(title);
   position: absolute;
-  bottom: calc(100% + 6px);
-  right: 0;
+  top: 50%;
+  right: calc(100% + 6px);
+  transform: translateY(-50%);
   background: var(--bg-secondary);
   color: var(--text-primary);
   padding: 5px 8px;
@@ -1230,4 +1238,8 @@ body.generating #generateBtn {
   outline-offset: -1px;
   box-shadow: 0 0 12px rgba(255, 71, 87, 0.4) !important;
   opacity: 0.7 !important;
+}
+
+#clearHistory {
+  display: none;
 }

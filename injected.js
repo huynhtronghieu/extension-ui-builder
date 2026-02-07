@@ -4,7 +4,7 @@
 (function() {
   'use strict';
 
-  console.log('Gemini HTML Builder: Injected script loaded at', new Date().toISOString());
+  console.log('UI Builder từ Gemini AI: Injected script loaded at', new Date().toISOString());
 
   // Notify content script that injected script is ready
   window.postMessage({ type: 'GEMINI_INJECTED_READY' }, '*');
@@ -766,5 +766,5 @@ Start your response with exactly: <!DOCTYPE html>`;
     extractTokens();
   }, 2000);
 
-  console.log('Gemini HTML Builder: Injected script ready');
+  console.log('UI Builder từ Gemini AI: Injected script ready');
 })();
