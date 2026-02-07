@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearHistory: document.getElementById('clearHistory'),
     // Prompt section
     promptInput: document.getElementById('promptInput'),
-    modelSelect: document.getElementById('modelSelect'),
+    modelToggle: document.getElementById('modelToggle'),
     generateBtn: document.getElementById('generateBtn'),
     // Preview
     previewFrame: document.getElementById('previewFrame'),
@@ -64,6 +64,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   elements.inspectBtn.addEventListener('click', toggleInspectMode);
   elements.clearSelection.addEventListener('click', clearElementSelection);
   elements.previewFrame.addEventListener('load', setupPreviewInspector);
+
+  // Model toggle
+  let currentModelType = 'flash';
+  elements.modelToggle.querySelectorAll('.model-toggle-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      if (isGenerating) return;
+      elements.modelToggle.querySelectorAll('.model-toggle-option').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      currentModelType = opt.dataset.value;
+      // Move slider
+      const slider = elements.modelToggle.querySelector('.model-toggle-slider');
+      slider.style.transform = currentModelType === 'thinking' ? 'translateX(100%)' : 'translateX(0)';
+    });
+  });
 
   // Device toolbar listeners
   const deviceButtons = document.querySelectorAll('.device-btn');
@@ -522,7 +536,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Get selected model
-    const modelType = elements.modelSelect.value; // 'flash' or 'thinking'
+    const modelType = currentModelType; // 'flash' or 'thinking'
 
     // Set loading state first
     elements.generateBtn.classList.add('loading');

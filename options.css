@@ -668,22 +668,46 @@ body {
   color: var(--accent-secondary);
 }
 
-/* Model Select */
-.model-select {
-  padding: 10px 14px;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-primary);
-  font-size: 13px;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s;
+/* Model Toggle */
+.model-toggle {
+  display: flex;
+  position: relative;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.model-select option {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  padding: 8px;
+.model-toggle-option {
+  position: relative;
+  z-index: 1;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.3s ease;
+  user-select: none;
+  white-space: nowrap;
+  text-align: center;
+  flex: 1;
+}
+
+.model-toggle-option.active {
+  color: var(--bg-primary);
+}
+
+.model-toggle-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  height: calc(100% - 4px);
+  background: var(--accent-gradient);
+  border-radius: 6px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
 /* Empty state */
@@ -880,7 +904,7 @@ body {
   flex: 1;
 }
 
-.prompt-actions .model-select {
+.prompt-actions .model-toggle {
   flex-shrink: 0;
 }
 
