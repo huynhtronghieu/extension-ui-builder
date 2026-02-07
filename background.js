@@ -186,6 +186,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const response = await sendMessageWithTimeout(geminiTabId, {
             type: 'GENERATE_REQUEST',
             prompt: message.prompt,
+            isElementEdit: message.isElementEdit || false,
             modelType: message.modelType || 'flash',
             conversationId: message.conversationId,
             responseId: message.responseId,
@@ -205,6 +206,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               const retryResponse = await sendMessageWithTimeout(geminiTabId, {
                 type: 'GENERATE_REQUEST',
                 prompt: message.prompt,
+                isElementEdit: message.isElementEdit || false,
                 modelType: message.modelType || 'flash',
                 conversationId: message.conversationId,
                 responseId: message.responseId,
@@ -229,6 +231,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         success: message.success,
         html: message.html,
         rawText: message.rawText || '',
+        isElementEdit: message.isElementEdit || false,
         error: message.error,
         conversationId: message.conversationId,
         responseId: message.responseId,

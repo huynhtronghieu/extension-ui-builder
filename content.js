@@ -101,6 +101,7 @@
     window.postMessage({
       type: 'GEMINI_GENERATE_REQUEST',
       prompt: message.prompt,
+      isElementEdit: message.isElementEdit || false,
       modelType: message.modelType || 'flash',
       conversationId: message.conversationId,
       responseId: message.responseId,
@@ -128,6 +129,7 @@
         success: data.success,
         html: data.html,
         rawText: data.rawText || '',
+        isElementEdit: data.isElementEdit || false,
         error: data.error,
         conversationId: data.conversationId,
         responseId: data.responseId,

@@ -95,7 +95,13 @@
   }
 
   // Build optimized prompt for HTML generation
-  function buildOptimizedPrompt(userPrompt) {
+  function buildOptimizedPrompt(userPrompt, isElementEdit = false) {
+    // For element edits, the prompt already has specific instructions
+    // Don't wrap it with full-HTML generation instructions
+    if (isElementEdit) {
+      return userPrompt;
+    }
+    
     // Use a more direct prompt that forces immediate HTML output
     return `Generate HTML code only. No explanation, no markdown, no thinking.
     
@@ -113,13 +119,15 @@ Start your response with exactly: <!DOCTYPE html>`;
 
   // Build request body - match the curl format
   function buildRequestBody(prompt, options = {}) {
-    const optimizedPrompt = buildOptimizedPrompt(prompt);
+    const optimizedPrompt = buildOptimizedPrompt(prompt, options.isElementEdit);
     const uuid = generateUUID();
     
-    // Use conversation context from options if provided (for continuing conversation)
-    const conversationId = options.conversationId || API_CONFIG.conversationId || "";
-    const responseId = options.responseId || API_CONFIG.responseId || "";
-    const choiceId = options.choiceId || API_CONFIG.choiceId || "";
+    // Use ONLY the per-page conversation context passed via options.
+    // NEVER fall back to API_CONFIG which is a global singleton shared across all pages.
+    // Empty string means "start a new conversation" — do not replace it with a stale ID.
+    const conversationId = options.conversationId ?? "";
+    const responseId = options.responseId ?? "";
+    const choiceId = options.choiceId ?? "";
     
     // Build the complex nested array structure that Gemini expects (from curl)
     const requestData = [
@@ -329,6 +337,10 @@ Start your response with exactly: <!DOCTYPE html>`;
     current = current.replace(/\\r/g, '\r');
     current = current.replace(/\\"/g, '"');
     
+    // Remove stray backslashes before HTML/CSS special characters
+    // These result from multi-level JSON escaping (e.g., \< \> \! \/ \= \# \-)
+    current = current.replace(/\\([<>!\/=#"'{}()\[\]:;,.\-])/g, '$1');
+    
     return current;
   }
 
@@ -389,22 +401,58 @@ Start your response with exactly: <!DOCTYPE html>`;
     return null;
   }
 
-  // Parse streaming response - IMPROVED VERSION
+  // Extract clean HTML text from the nested token array structure
+  // Gemini streaming responses contain a block like:
+  // [[[[null,[null,0,"<!DOCTYPE html>"]],[null,[null,0,"<html lang=\"vi\">..."]]]]]
+  // This block has properly decoded HTML pieces after JSON parsing
+  function extractCleanTextFromTokens(innerData) {
+    if (!Array.isArray(innerData)) return null;
+    
+    for (let i = 0; i < innerData.length; i++) {
+      try {
+        const block = innerData[i];
+        if (!Array.isArray(block) || !Array.isArray(block[0])) continue;
+        
+        const level2 = block[0];
+        if (!Array.isArray(level2) || !Array.isArray(level2[0])) continue;
+        
+        const entries = level2[0];
+        if (!Array.isArray(entries)) continue;
+        
+        let texts = [];
+        let hasHtmlContent = false;
+        
+        for (const entry of entries) {
+          if (!Array.isArray(entry) || entry.length < 2) continue;
+          const textArr = entry[1];
+          if (Array.isArray(textArr) && textArr.length >= 3 && typeof textArr[2] === 'string') {
+            const text = textArr[2];
+            texts.push(text);
+            if (text.includes('<!DOCTYPE') || text.includes('<html') || text.includes('<head')) {
+              hasHtmlContent = true;
+            }
+          }
+        }
+        
+        if (texts.length > 0 && hasHtmlContent) {
+          const combined = texts.join('');
+          console.log('Found clean HTML from token array, pieces:', texts.length, 'total length:', combined.length);
+          return combined;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  // Parse streaming response - FIXED VERSION
   function parseResponse(responseText) {
     try {
       console.log('Parsing response, length:', responseText.length);
       
-      let fullHtml = '';
-      let allTextParts = [];
-      let largestHtmlChunk = '';
-      
-      // First, try to find HTML directly in the raw response (handles deeply nested escaping)
-      const rawDecoded = decodeUnicodeEscapes(responseText);
-      const directHtmlMatch = rawDecoded.match(/(<!DOCTYPE html[\s\S]*?<\/html>)/i);
-      if (directHtmlMatch) {
-        largestHtmlChunk = directHtmlMatch[1];
-        console.log('Found HTML directly in response, length:', largestHtmlChunk.length);
-      }
+      let largestCleanText = '';   // From token array (cleanest source)
+      let largestDecodedText = ''; // From innerData[4][0][1][0] (needs decode)
       
       // Split by lines and find JSON chunks
       const lines = responseText.split('\n');
@@ -426,23 +474,25 @@ Start your response with exactly: <!DOCTYPE html>`;
                   try {
                     const innerData = JSON.parse(item[2]);
                     
-                    // Deep search for HTML in the nested structure
-                    const foundHtml = deepSearchForHTML(innerData);
-                    if (foundHtml && foundHtml.length > largestHtmlChunk.length) {
-                      largestHtmlChunk = foundHtml;
-                      console.log('Found larger HTML chunk, length:', largestHtmlChunk.length);
+                    // Priority 1: Extract from clean token array
+                    // This is the cleanest source - already properly decoded by JSON.parse
+                    const cleanText = extractCleanTextFromTokens(innerData);
+                    if (cleanText && cleanText.length > largestCleanText.length) {
+                      largestCleanText = cleanText;
+                      console.log('Found clean text from tokens, length:', largestCleanText.length);
                     }
                     
-                    // Also try specific paths known to contain response text
-                    // Path: innerData[4][0][1][0] - main response text
+                    // Priority 2: Extract from innerData[4][0][1][0] (main response text)
                     if (innerData && innerData[4] && innerData[4][0] && innerData[4][0][1]) {
                       const responseArr = innerData[4][0][1];
+                      let textPart = '';
                       if (Array.isArray(responseArr) && responseArr[0]) {
-                        const textPart = decodeUnicodeEscapes(responseArr[0]);
-                        if (textPart) allTextParts.push(textPart);
+                        textPart = decodeUnicodeEscapes(responseArr[0]);
                       } else if (typeof responseArr === 'string') {
-                        const textPart = decodeUnicodeEscapes(responseArr);
-                        if (textPart) allTextParts.push(textPart);
+                        textPart = decodeUnicodeEscapes(responseArr);
+                      }
+                      if (textPart && textPart.length > largestDecodedText.length) {
+                        largestDecodedText = textPart;
                       }
                     }
                     
@@ -466,9 +516,12 @@ Start your response with exactly: <!DOCTYPE html>`;
             if (jsonMatch) {
               try {
                 const parsed = JSON.parse(jsonMatch[1]);
-                const foundHtml = deepSearchForHTML(parsed);
-                if (foundHtml && foundHtml.length > largestHtmlChunk.length) {
-                  largestHtmlChunk = foundHtml;
+                if (parsed[0] && parsed[0][2]) {
+                  const innerData = JSON.parse(parsed[0][2]);
+                  const cleanText = extractCleanTextFromTokens(innerData);
+                  if (cleanText && cleanText.length > largestCleanText.length) {
+                    largestCleanText = cleanText;
+                  }
                 }
               } catch (e2) {}
             }
@@ -476,52 +529,84 @@ Start your response with exactly: <!DOCTYPE html>`;
         }
       }
 
-      // Use the largest HTML chunk found
-      if (largestHtmlChunk) {
-        const htmlCode = extractHTML(largestHtmlChunk);
-        if (htmlCode) {
-          console.log('Extracted HTML, length:', htmlCode.length);
-          return {
-            success: true,
-            html: htmlCode,
-            rawText: largestHtmlChunk
-          };
+      // Compare all sources and use the LARGEST one
+      // Token array is just a summary/preview - decoded text has the full content
+      let bestHtml = '';
+      let bestRawText = '';
+      
+      // Try decoded text from innerData[4][0][1][0] (usually the most complete source)
+      if (largestDecodedText) {
+        const htmlCode = extractHTML(largestDecodedText);
+        if (htmlCode && htmlCode.length > bestHtml.length) {
+          bestHtml = htmlCode;
+          bestRawText = largestDecodedText;
+          console.log('Found HTML from decoded text, length:', htmlCode.length);
         }
       }
-
-      // Try to combine text parts and extract HTML
-      const combinedText = allTextParts.join('');
-      if (combinedText) {
-        const htmlCode = extractHTML(combinedText);
-        if (htmlCode) {
-          console.log('Extracted HTML from combined text, length:', htmlCode.length);
-          return {
-            success: true,
-            html: htmlCode,
-            rawText: combinedText
-          };
+      
+      // Try clean token array text (may be just a summary)
+      if (largestCleanText) {
+        const htmlCode = extractHTML(largestCleanText);
+        if (htmlCode && htmlCode.length > bestHtml.length) {
+          bestHtml = htmlCode;
+          bestRawText = largestCleanText;
+          console.log('Found HTML from clean tokens, length:', htmlCode.length);
         }
       }
+      
+      if (bestHtml) {
+        console.log('Using best HTML source, length:', bestHtml.length);
+        return {
+          success: true,
+          html: bestHtml,
+          rawText: bestRawText
+        };
+      }
 
-      // Last resort: search entire decoded response for HTML
-      if (rawDecoded) {
-        const htmlCode = extractHTML(rawDecoded);
+      // Priority 3: Deep search through parsed data for any HTML strings (fallback)
+      let deepSearchResult = '';
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line || /^\d+$/.test(line)) continue;
+        if (line.includes('[["wrb.fr"') || line.startsWith('[[')) {
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed && Array.isArray(parsed)) {
+              for (const item of parsed) {
+                if (Array.isArray(item) && item[0] === 'wrb.fr' && item[2]) {
+                  try {
+                    const innerData = JSON.parse(item[2]);
+                    const found = deepSearchForHTML(innerData);
+                    if (found && found.length > deepSearchResult.length) {
+                      deepSearchResult = found;
+                    }
+                  } catch (e) {}
+                }
+              }
+            }
+          } catch (e) {}
+        }
+      }
+      
+      if (deepSearchResult) {
+        const htmlCode = extractHTML(deepSearchResult);
         if (htmlCode) {
-          console.log('Extracted HTML from whole decoded response, length:', htmlCode.length);
+          console.log('Extracted HTML from deep search, length:', htmlCode.length);
           return {
             success: true,
             html: htmlCode,
-            rawText: rawDecoded
+            rawText: deepSearchResult
           };
         }
       }
 
       console.log('Could not find HTML in response');
-      console.log('Response preview (decoded):', rawDecoded.substring(0, 1000));
+      console.log('Largest clean text preview:', largestCleanText.substring(0, 300));
+      console.log('Largest decoded text preview:', largestDecodedText.substring(0, 300));
       return {
         success: false,
         html: '',
-        rawText: combinedText || largestHtmlChunk || rawDecoded.substring(0, 5000),
+        rawText: largestCleanText || largestDecodedText || '',
         error: 'Không tìm thấy HTML trong response'
       };
     } catch (error) {
@@ -599,6 +684,14 @@ Start your response with exactly: <!DOCTYPE html>`;
         }
       }
 
+      // For element edits, the response is an HTML fragment, not a full document
+      // So even if full-HTML extraction fails, rawText is the useful content
+      if (options.isElementEdit && !result.success && result.rawText) {
+        console.log('Element edit mode: using rawText as content, length:', result.rawText.length);
+        result.success = true;
+        result.html = result.rawText;
+      }
+
       if (result.success) {
         console.log('HTML extracted successfully, length:', result.html.length);
         window.postMessage({
@@ -606,6 +699,7 @@ Start your response with exactly: <!DOCTYPE html>`;
           success: true,
           html: result.html,
           rawText: result.rawText || '',
+          isElementEdit: options.isElementEdit || false,
           error: null,
           // Return conversation IDs for saving per page
           conversationId: API_CONFIG.conversationId,
@@ -621,6 +715,7 @@ Start your response with exactly: <!DOCTYPE html>`;
           success: false,
           html: '',
           rawText: result.rawText || '',
+          isElementEdit: options.isElementEdit || false,
           error: 'Không thể trích xuất HTML từ phản hồi. Hãy thử mô tả chi tiết hơn.',
           conversationId: API_CONFIG.conversationId,
           responseId: API_CONFIG.responseId,
@@ -647,9 +742,11 @@ Start your response with exactly: <!DOCTYPE html>`;
       console.log('Injected script: Received generate request');
       console.log('Model type:', event.data.modelType);
       console.log('Page ID:', event.data.pageId);
+      console.log('Is element edit:', event.data.isElementEdit);
       
       generateHTML(event.data.prompt, {
         modelType: event.data.modelType,
+        isElementEdit: event.data.isElementEdit || false,
         conversationId: event.data.conversationId,
         responseId: event.data.responseId,
         choiceId: event.data.choiceId

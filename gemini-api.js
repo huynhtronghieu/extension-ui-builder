@@ -262,6 +262,7 @@ Trả về NGAY mã HTML:`;
       .replace(/\\n/g, '\n')
       .replace(/\\"/g, '"')
       .replace(/\\\\/g, '\\')
+      .replace(/\\([<>!\/=#"'{}()\[\]:;,.])/g, '$1')
       .trim();
   }
 

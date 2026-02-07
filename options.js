@@ -35,6 +35,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   let isConnected = false;
   let currentPageId = null; // Current active page
   
+  // Revert state - tracks when user loads a previous history item
+  let isReverted = false;
+  let revertedFromPrompt = ''; // The prompt of the history item that was loaded
+  let latestHistoryId = null;  // The ID of the most recent history item
+  
   // Inspect mode state
   let isInspectMode = false;
   let selectedElement = null;
@@ -213,6 +218,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadHistory();
       
       currentHTML = '';
+      isReverted = false;
+      revertedFromPrompt = '';
       showEmptyPreview();
       elements.promptInput.value = '';
       
@@ -250,6 +257,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Load last prompt
         elements.promptInput.value = page.lastPrompt || '';
       }
+      
+      // Clear revert state when switching pages
+      isReverted = false;
+      revertedFromPrompt = '';
       
       // Load page history
       await loadHistory();
@@ -406,7 +417,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (item && item.html) {
         currentHTML = item.html;
         updatePreview(item.html);
-        elements.promptInput.value = item.prompt || '';
+        elements.promptInput.value = '';
+        
+        // Check if this is a revert (not the latest history item)
+        const history = await htmlDB.getPageHistory(currentPageId);
+        const latestItem = history.length > 0 ? history[0] : null;
+        latestHistoryId = latestItem ? latestItem.id : null;
+        
+        if (latestItem && latestItem.id !== id) {
+          // User is reverting to an older version
+          isReverted = true;
+          revertedFromPrompt = item.prompt || '';
+          showStatus(`Đã revert về: "${item.prompt}". Prompt tiếp theo sẽ tiếp tục từ phiên bản này.`, 'success');
+        } else {
+          // User clicked the latest item, not a revert
+          isReverted = false;
+          revertedFromPrompt = '';
+          showStatus('Đã tải HTML từ lịch sử', 'success');
+        }
         
         // Clear any element selection when loading from history
         clearElementSelection();
@@ -418,7 +446,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const activeItem = elements.historyList.querySelector(`[data-id="${id}"]`);
         if (activeItem) activeItem.classList.add('active');
         
-        showStatus('Đã tải HTML từ lịch sử', 'success');
       } else {
         showStatus('Không có dữ liệu HTML trong mục này', 'error');
       }
@@ -448,6 +475,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       await htmlDB.clearPageHistory(currentPageId);
       await loadHistory();
       currentHTML = '';
+      isReverted = false;
+      revertedFromPrompt = '';
       showEmptyPreview();
       showStatus('Đã xóa toàn bộ lịch sử', 'info');
     } catch (error) {
@@ -505,8 +534,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get page data for conversation context
     const page = await htmlDB.getPage(currentPageId);
 
-    // If element is selected, modify the prompt for element-specific editing
+    // If user reverted to a previous version, prepend context about current HTML state
     let finalPrompt = prompt;
+    if (isReverted && currentHTML && !selectedPath) {
+      // Truncate HTML if too long to fit in prompt context
+      const maxHtmlContext = 6000;
+      let htmlContext = currentHTML;
+      if (htmlContext.length > maxHtmlContext) {
+        htmlContext = htmlContext.substring(0, maxHtmlContext) + '\n... (truncated)';
+      }
+      
+      finalPrompt = `IMPORTANT CONTEXT: I have reverted my HTML page to a previous version. Below is the CURRENT HTML code that I'm working with. Please use this as the base and apply my new request on top of it.
+
+CURRENT HTML CODE:
+${htmlContext}
+
+NEW REQUEST: ${prompt}
+
+Please return the COMPLETE updated HTML file incorporating my request above. Start with <!DOCTYPE html>.`;
+      
+      console.log('Sending revert context to Gemini, HTML length:', currentHTML.length);
+    }
+    
+    // If element is selected, modify the prompt for element-specific editing
     let elementTag = '';
     if (selectedPath) {
       try {
@@ -554,9 +604,9 @@ NEW INNER HTML:`;
       isElementEdit: !!selectedPath,
       modelType: modelType, // 'flash' or 'thinking'
       pageId: currentPageId,
-      conversationId: page?.conversationId || null,
-      responseId: page?.responseId || null,
-      choiceId: page?.choiceId || null
+      conversationId: page?.conversationId ?? '',
+      responseId: page?.responseId ?? '',
+      choiceId: page?.choiceId ?? ''
     }, (response) => {
       if (!response || !response.success) {
         elements.generateBtn.classList.remove('loading');
@@ -617,7 +667,7 @@ NEW INNER HTML:`;
     console.log('Extracted HTML length:', html?.length || 0);
     console.log('HTML preview:', html?.substring(0, 200) || 'null');
 
-    if (html || (selectedPath && message.rawText)) {
+    if (html || (selectedPath && (message.rawText || message.html))) {
       // Check if we're in element edit mode
       if (selectedPath) {
         // Replace only the selected element's content
@@ -627,10 +677,10 @@ NEW INNER HTML:`;
           const targetElement = iframeDoc.querySelector(selectedPath);
           
           if (targetElement) {
-            // Extract just the inner content from the response
-            // For element edit, use the raw response if html extraction failed
-            let rawContent = html || message.html || message.rawText || '';
-            const newContent = extractInnerContent(rawContent);
+            // For element edit, prefer rawText/html from message over extracted full-doc html
+            // because extractInnerContent is smarter at handling the raw response
+            let rawContent = message.html || message.rawText || html || '';
+            const newContent = extractInnerContent(rawContent, selectedPath);
             
             console.log('Element edit - raw:', rawContent.substring(0, 200));
             console.log('Element edit - extracted:', newContent.substring(0, 200));
@@ -647,6 +697,10 @@ NEW INNER HTML:`;
             
             // Update currentHTML with the modified document
             currentHTML = '<!DOCTYPE html>\n' + iframeDoc.documentElement.outerHTML;
+            
+            // Clear revert state after successful element edit
+            isReverted = false;
+            revertedFromPrompt = '';
             
             // Save to IndexedDB with page ID
             const prompt = elements.promptInput.value.trim();
@@ -672,6 +726,10 @@ NEW INNER HTML:`;
       } else {
         // Full HTML replacement (original behavior)
         currentHTML = html;
+        
+        // Clear revert state after successful generation
+        isReverted = false;
+        revertedFromPrompt = '';
         
         // Save to IndexedDB with page ID
         const prompt = elements.promptInput.value.trim();
@@ -738,7 +796,7 @@ NEW INNER HTML:`;
   }
   
   // Extract inner content from Gemini response (for element edit mode)
-  function extractInnerContent(html) {
+  function extractInnerContent(html, selectedSelector) {
     if (!html) return '';
     
     let content = html;
@@ -746,37 +804,70 @@ NEW INNER HTML:`;
     // Remove code block markers
     content = content.replace(/```html\s*/gi, '').replace(/```\s*/g, '');
     
-    // If it's a full HTML document, extract body
+    // Remove thinking text before first HTML tag (e.g., "Here's the updated HTML:")
+    content = content.replace(/^[\s\S]*?(?=<[a-zA-Z])/m, '');
+    
+    // If it's a full HTML document, we need to be smart about extraction
     if (content.includes('<!DOCTYPE') || content.includes('<html')) {
+      // Try to find the selected element's tag in the response body
+      if (selectedSelector) {
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(content, 'text/html');
+          
+          // Try to find the matching element in the response doc
+          const matchedElement = doc.querySelector(selectedSelector);
+          if (matchedElement) {
+            console.log('Found matching element in full HTML response via selector:', selectedSelector);
+            return matchedElement.innerHTML.trim();
+          }
+          
+          // If exact selector doesn't match, try to find by tag type from the body
+          // Get the tag name from the selector
+          const tagMatch = selectedSelector.match(/^([a-zA-Z][a-zA-Z0-9]*)/);
+          if (tagMatch) {
+            const tagName = tagMatch[1].toLowerCase();
+            const bodyEl = doc.querySelector('body');
+            if (bodyEl) {
+              // If body has exactly one child of the same tag type, use it
+              const matchingChildren = bodyEl.querySelectorAll(':scope > ' + tagName);
+              if (matchingChildren.length === 1) {
+                console.log('Found single matching tag in body:', tagName);
+                return matchingChildren[0].innerHTML.trim();
+              }
+            }
+          }
+          
+          // Fallback: if body has only one direct child, use its innerHTML
+          const bodyElement = doc.querySelector('body');
+          if (bodyElement) {
+            const directChildren = Array.from(bodyElement.children);
+            if (directChildren.length === 1) {
+              console.log('Body has single child, using its innerHTML');
+              return directChildren[0].innerHTML.trim();
+            }
+            // If body has multiple children, return body innerHTML
+            // This is the old behavior but logged as a warning
+            console.warn('Full HTML response with multiple body children - using full body innerHTML');
+            return bodyElement.innerHTML.trim();
+          }
+        } catch (e) {
+          console.error('Error parsing full HTML for element extraction:', e);
+        }
+      }
+      
+      // Legacy fallback: extract body content
       const bodyMatch = content.match(/<body[^>]*>([\s\S]*)<\/body>/i);
       if (bodyMatch) {
         return bodyMatch[1].trim();
       }
     }
     
-    // Find the first HTML tag and extract from there
+    // For HTML fragments (expected case), find the first HTML tag and extract from there
     const firstTagMatch = content.match(/(<[a-zA-Z][^>]*>[\s\S]*)/i);
     if (firstTagMatch) {
       content = firstTagMatch[1];
     }
-    
-    // Remove any leading text before first tag (thinking text)
-    const lines = content.split('\n');
-    let startIdx = 0;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      // Skip empty lines and lines that don't start with < (AI thinking)
-      if (line && (line.startsWith('<') || line.match(/^[\s]*$/))) {
-        if (line.startsWith('<')) {
-          startIdx = i;
-          break;
-        }
-      } else if (line && !line.startsWith('<')) {
-        // This is thinking text, skip it
-        continue;
-      }
-    }
-    content = lines.slice(startIdx).join('\n');
     
     // Clean up any trailing thinking text after last closing tag
     const lastClosingTag = content.lastIndexOf('>');
