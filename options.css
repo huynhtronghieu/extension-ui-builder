@@ -671,24 +671,13 @@ body {
 /* Model Select */
 .model-select {
   padding: 10px 14px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
   outline: none;
   transition: all 0.2s;
-  min-width: 120px;
-}
-
-.model-select:hover {
-  border-color: var(--accent-secondary);
-}
-
-.model-select:focus {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
 }
 
 .model-select option {

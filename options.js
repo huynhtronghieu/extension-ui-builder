@@ -739,8 +739,9 @@ NEW INNER HTML:`;
             // Update selectedElement reference to the new element
             selectedElement = targetElement;
             
-            // Update currentHTML with the modified document
+            // Update currentHTML with the modified document (clean inspect artifacts)
             currentHTML = '<!DOCTYPE html>\n' + iframeDoc.documentElement.outerHTML;
+            currentHTML = cleanHTMLForSave(currentHTML);
             
             // Clear revert state after successful element edit
             isReverted = false;
@@ -1083,6 +1084,15 @@ NEW INNER HTML:`;
         if (element) {
           highlightSelectedElement(element);
         }
+      } else {
+        // No active selection — clean any leftover gemini highlights from saved HTML
+        // Keep the style element (it only applies when classes are present)
+        const leftover = iframeDoc.querySelectorAll('.gemini-selected-element, .gemini-hover-highlight');
+        leftover.forEach(el => {
+          el.classList.remove('gemini-selected-element');
+          el.classList.remove('gemini-hover-highlight');
+        });
+        iframeDoc.body?.classList.remove('gemini-inspect-active');
       }
     } catch (e) {
       console.log('Cannot setup inspector:', e);
@@ -1290,6 +1300,22 @@ NEW INNER HTML:`;
     } catch (e) {
       console.log('Cannot clear highlights:', e);
     }
+  }
+
+  // Clean gemini inspect artifacts from HTML (classes, styles injected into iframe)
+  function cleanHTMLForSave(html) {
+    if (!html) return html;
+    // Remove gemini-selected-element and gemini-hover-highlight classes
+    html = html.replace(/\s*class="gemini-selected-element"/gi, '');
+    html = html.replace(/\s*class="gemini-hover-highlight"/gi, '');
+    html = html.replace(/\s+gemini-selected-element/gi, '');
+    html = html.replace(/\s+gemini-hover-highlight/gi, '');
+    html = html.replace(/\s+gemini-inspect-active/gi, '');
+    // Remove the injected style block
+    html = html.replace(/<style id="gemini-inspect-styles">[\s\S]*?<\/style>/gi, '');
+    // Clean up empty class attributes left behind
+    html = html.replace(/\s+class="\s*"/gi, '');
+    return html;
   }
 
   // Clear element selection
