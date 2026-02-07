@@ -40,6 +40,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   let revertedFromPrompt = ''; // The prompt of the history item that was loaded
   let latestHistoryId = null;  // The ID of the most recent history item
   
+  // Generation state
+  let isGenerating = false;
+  
   // Inspect mode state
   let isInspectMode = false;
   let selectedElement = null;
@@ -529,6 +532,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.promptInput.value = '';
     elements.promptInput.disabled = true;
     elements.promptInput.placeholder = 'Đang tạo HTML...';
+    
+    // Lock all UI
+    lockUI();
 
     // Ensure connection before generating
     if (!isConnected) {
@@ -544,6 +550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           elements.generateBtn.disabled = false;
           elements.promptInput.disabled = false;
           elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
+          unlockUI();
           showStatus('Không thể kết nối Gemini. Vui lòng thử lại.', 'error');
           return;
         }
@@ -555,6 +562,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         elements.generateBtn.disabled = false;
         elements.promptInput.disabled = false;
         elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
+        unlockUI();
         showStatus('Lỗi kết nối: ' + error.message, 'error');
         return;
       }
@@ -576,18 +584,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       const revertNote = isReverted ? '\nNOTE: I have reverted to a previous version of this page. ' : '';
       
-      finalPrompt = `IMPORTANT: Below is my CURRENT HTML page. Modify it according to my request. Do NOT create a new page from scratch. Keep all existing structure, styles and content that are not related to my request.${revertNote}
+      finalPrompt = `You are an HTML editor. You will receive an existing HTML file and a modification request.
+Your job is to apply ONLY the requested change and return the FULL modified HTML file.${revertNote}
 
 CURRENT HTML CODE:
 ${htmlContext}
 
 MODIFICATION REQUEST: ${prompt}
 
-RULES:
-- Keep ALL existing HTML structure, styles, and content intact
-- ONLY change what is specifically requested
-- Return the COMPLETE modified HTML file
-- Start with <!DOCTYPE html>`;
+CRITICAL RULES:
+1. Copy the ENTIRE existing <style> block as-is. Do NOT remove, simplify, or rewrite any CSS property (padding, margin, gap, font-size, colors, gradients, shadows, border-radius, etc.)
+2. Only ADD or MODIFY the specific CSS/HTML related to the request
+3. Keep ALL existing HTML structure, class names, ids, and attributes unchanged unless the request specifically asks to change them
+4. Keep ALL existing content (text, emojis, links) unless the request specifically asks to change them
+5. Do NOT reorganize, reformat, or "clean up" any code
+6. Return the COMPLETE HTML file starting with <!DOCTYPE html>
+7. The output must be ONLY HTML code, no explanation, no markdown`;
       
       isModification = true;
       console.log('Sending modification prompt with HTML context, length:', currentHTML.length);
@@ -651,6 +663,7 @@ NEW INNER HTML:`;
         elements.generateBtn.disabled = false;
         elements.promptInput.disabled = false;
         elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
+        unlockUI();
         
         // If connection lost, mark as disconnected
         if (response?.error?.includes('kết nối')) {
@@ -672,6 +685,9 @@ NEW INNER HTML:`;
     // Re-enable prompt input
     elements.promptInput.disabled = false;
     elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
+    
+    // Unlock all UI
+    unlockUI();
 
     console.log('Handle generation result:', message);
     console.log('Raw HTML length:', message.html?.length || 0);
@@ -1041,6 +1057,44 @@ NEW INNER HTML:`;
     div.textContent = text;
     return div.innerHTML;
   }
+
+  // =====================
+  // UI LOCK DURING GENERATION
+  // =====================
+
+  // Lock all interactive UI elements during generation
+  function lockUI() {
+    isGenerating = true;
+    document.body.classList.add('generating');
+  }
+
+  // Unlock all interactive UI elements after generation
+  function unlockUI() {
+    isGenerating = false;
+    document.body.classList.remove('generating');
+  }
+
+  // Global click handler: shake-reject any click on interactive elements during generation
+  document.addEventListener('click', (e) => {
+    if (!isGenerating) return;
+    
+    const target = e.target.closest('button, select, .page-item, .history-item, a, [role="button"]');
+    if (!target) return;
+    // Allow nothing except reading — block all interactive clicks
+    if (target === elements.generateBtn) return; // already handled by its own disabled state
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Trigger red shake animation
+    target.classList.remove('shake-reject');
+    // Force reflow to restart animation
+    void target.offsetWidth;
+    target.classList.add('shake-reject');
+    target.addEventListener('animationend', () => {
+      target.classList.remove('shake-reject');
+    }, { once: true });
+  }, true); // Use capture phase to intercept before other handlers
 
   // =====================
   // INSPECT MODE FUNCTIONS
