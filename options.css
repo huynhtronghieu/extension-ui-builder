@@ -46,14 +46,16 @@ body {
   font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* App Container */
 .app-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* Header */
@@ -146,6 +148,8 @@ body {
   flex: 1;
   gap: 2px;
   background: var(--border-color);
+  min-height: 0; /* Critical: allows flex children to shrink below content size */
+  overflow: hidden;
 }
 
 /* Panels */
@@ -157,6 +161,8 @@ body {
 
 .preview-panel {
   flex: 1.3;
+  min-height: 0; /* Allows shrinking */
+  overflow: hidden;
 }
 
 .control-panel {
@@ -164,6 +170,8 @@ body {
   max-width: 450px;
   padding: 16px;
   gap: 16px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .panel-header {
@@ -378,15 +386,84 @@ body {
 /* Preview Container */
 .preview-container {
   flex: 1;
-  background: #fff;
-  overflow: hidden;
+  background: #1a1a25;
+  overflow: auto;
   position: relative;
+  display: flex;
+  justify-content: center;
+  min-height: 0; /* Critical for flex children to shrink properly */
 }
 
 #previewFrame {
   width: 100%;
   height: 100%;
   border: none;
+  background: #fff;
+  transition: width 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Device-specific iframe widths */
+#previewFrame.device-mobile {
+  width: 375px;
+  box-shadow: 0 0 0 1px var(--border-color), 0 4px 20px rgba(0,0,0,0.3);
+  border-radius: 8px;
+}
+
+#previewFrame.device-tablet {
+  width: 768px;
+  box-shadow: 0 0 0 1px var(--border-color), 0 4px 20px rgba(0,0,0,0.3);
+  border-radius: 8px;
+}
+
+#previewFrame.device-desktop {
+  width: 100%;
+}
+
+/* Device Toolbar */
+.device-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.device-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.device-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.device-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.device-btn.active {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
+}
+
+.device-size-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: 8px;
+  font-weight: 500;
 }
 
 /* Sections */
@@ -424,6 +501,7 @@ body {
 
 /* Page Section */
 .page-section {
+  min-height: fit-content;
   max-height: 180px;
   display: flex;
   flex-direction: column;
@@ -639,6 +717,7 @@ body {
 
 /* History Section */
 .history-section {
+  min-height: fit-content;
   max-height: 200px;
   display: flex;
   flex-direction: column;
@@ -766,6 +845,7 @@ body {
 
 /* Prompt Section */
 .prompt-section {
+  min-height: fit-content;
   flex: 1;
   display: flex;
   flex-direction: column;

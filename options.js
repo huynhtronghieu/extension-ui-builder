@@ -62,6 +62,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   elements.clearSelection.addEventListener('click', clearElementSelection);
   elements.previewFrame.addEventListener('load', setupPreviewInspector);
 
+  // Device toolbar listeners
+  const deviceButtons = document.querySelectorAll('.device-btn');
+  const deviceSizeLabel = document.getElementById('deviceSizeLabel');
+  const deviceLabels = { desktop: 'Desktop', tablet: 'Tablet (768px)', mobile: 'Mobile (375px)' };
+  
+  deviceButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const device = btn.dataset.device;
+      // Update active button
+      deviceButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // Update iframe class
+      const iframe = elements.previewFrame;
+      iframe.classList.remove('device-mobile', 'device-tablet', 'device-desktop');
+      iframe.classList.add('device-' + device);
+      // Update label
+      deviceSizeLabel.textContent = deviceLabels[device] || device;
+    });
+  });
+
   // Listen for messages from background
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Options received message:', message.type);
@@ -504,6 +524,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Set loading state first
     elements.generateBtn.classList.add('loading');
     elements.generateBtn.disabled = true;
+    
+    // Clear and disable prompt input during generation
+    elements.promptInput.value = '';
+    elements.promptInput.disabled = true;
+    elements.promptInput.placeholder = 'Đang tạo HTML...';
 
     // Ensure connection before generating
     if (!isConnected) {
@@ -517,6 +542,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!result || !result.connected) {
           elements.generateBtn.classList.remove('loading');
           elements.generateBtn.disabled = false;
+          elements.promptInput.disabled = false;
+          elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
           showStatus('Không thể kết nối Gemini. Vui lòng thử lại.', 'error');
           return;
         }
@@ -526,6 +553,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (error) {
         elements.generateBtn.classList.remove('loading');
         elements.generateBtn.disabled = false;
+        elements.promptInput.disabled = false;
+        elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
         showStatus('Lỗi kết nối: ' + error.message, 'error');
         return;
       }
@@ -620,6 +649,8 @@ NEW INNER HTML:`;
       if (!response || !response.success) {
         elements.generateBtn.classList.remove('loading');
         elements.generateBtn.disabled = false;
+        elements.promptInput.disabled = false;
+        elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
         
         // If connection lost, mark as disconnected
         if (response?.error?.includes('kết nối')) {
@@ -637,6 +668,10 @@ NEW INNER HTML:`;
   async function handleGenerationResult(message) {
     elements.generateBtn.classList.remove('loading');
     elements.generateBtn.disabled = false;
+    
+    // Re-enable prompt input
+    elements.promptInput.disabled = false;
+    elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
 
     console.log('Handle generation result:', message);
     console.log('Raw HTML length:', message.html?.length || 0);

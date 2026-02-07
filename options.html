@@ -64,6 +64,19 @@
             <code id="selectedSelector"></code>
           </div>
         </div>
+        <!-- Device Preview Toolbar -->
+        <div class="device-toolbar">
+          <button class="device-btn active" data-device="desktop" title="Desktop (100%)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </button>
+          <button class="device-btn" data-device="tablet" title="Tablet (768px)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          </button>
+          <button class="device-btn" data-device="mobile" title="Mobile (375px)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          </button>
+          <span class="device-size-label" id="deviceSizeLabel">Desktop</span>
+        </div>
         <div class="preview-container">
           <iframe id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe>
         </div>
