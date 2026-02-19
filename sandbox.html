@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview Sandbox</title>
+</head>
+<body>
+<script>
+window.addEventListener('message', function(e) {
+  var data = e.data;
+  if (!data || data.type !== 'PREVIEW_HTML') return;
+  var html = data.html || '';
+  var bridge = data.bridgeScript || '';
+  var bodyClose = html.lastIndexOf('</body>');
+  if (bodyClose !== -1) {
+    html = html.substring(0, bodyClose) + bridge + html.substring(bodyClose);
+  } else {
+    var htmlClose = html.lastIndexOf('</html>');
+    if (htmlClose !== -1) {
+      html = html.substring(0, htmlClose) + bridge + html.substring(htmlClose);
+    } else {
+      html += bridge;
+    }
+  }
+  document.open();
+  document.write(html);
+  document.close();
+});
+window.parent.postMessage({ type: 'SANDBOX_READY' }, '*');
+</script>
+</body>
+</html>

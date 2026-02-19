@@ -49,6 +49,249 @@ document.addEventListener('DOMContentLoaded', async () => {
   let selectedElement = null;
   let selectedPath = null; // CSS selector path to the element
 
+  // Sandbox configuration
+  const SANDBOX_URL = 'https://sandbox.hieu.website';
+  let sandboxState = 'loading'; // 'loading' | 'ready' | 'writing'
+  let messageQueue = [];
+  let pendingRequests = {};
+  let requestCounter = 0;
+  let pendingAfterReady = [];
+
+  // Bridge script - injected into sandbox iframe for cross-origin communication
+  const BRIDGE_SCRIPT = `<script id="__sandbox_bridge__">
+(function() {
+  var inspStylesInjected = false;
+  var isInspectMode = false;
+  function injectInspectStyles() {
+    if (inspStylesInjected || !document.head) return;
+    var s = document.createElement('style');
+    s.id = 'gemini-inspect-styles';
+    s.textContent = '.gemini-hover-highlight{outline:2px dashed #00ff88!important;outline-offset:2px!important;background-color:rgba(0,255,136,0.1)!important;cursor:crosshair!important} .gemini-selected-element{outline:3px solid #00ff88!important;outline-offset:2px!important;background-color:rgba(0,255,136,0.15)!important;box-shadow:0 0 20px rgba(0,255,136,0.3)!important} .gemini-inspect-active *{cursor:crosshair!important}';
+    document.head.appendChild(s);
+    inspStylesInjected = true;
+  }
+  function generateSelector(el) {
+    var path = [], cur = el;
+    while (cur && cur !== document.body && cur !== document.documentElement) {
+      var sel = cur.tagName.toLowerCase();
+      if (cur.id) { path.unshift('#' + cur.id); break; }
+      if (cur.className && typeof cur.className === 'string') {
+        var cls = cur.className.split(' ').filter(function(c) { return c && c.indexOf('gemini-') !== 0; }).slice(0, 2);
+        if (cls.length > 0) sel += '.' + cls.join('.');
+      }
+      var par = cur.parentElement;
+      if (par) {
+        var sibs = Array.from(par.children).filter(function(c) { return c.tagName === cur.tagName; });
+        if (sibs.length > 1) sel += ':nth-of-type(' + (sibs.indexOf(cur) + 1) + ')';
+      }
+      path.unshift(sel);
+      cur = cur.parentElement;
+    }
+    return path.join(' > ');
+  }
+  function onHover(e) {
+    if (!isInspectMode) return;
+    e.stopPropagation();
+    var t = e.target;
+    if (t === e.currentTarget || t.classList.contains('gemini-selected-element')) return;
+    t.classList.add('gemini-hover-highlight');
+  }
+  function onMouseOut(e) {
+    if (!isInspectMode) return;
+    e.stopPropagation();
+    e.target.classList.remove('gemini-hover-highlight');
+  }
+  function onClick(e) {
+    if (!isInspectMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var t = e.target;
+    if (t === e.currentTarget) return;
+    t.classList.remove('gemini-hover-highlight');
+    window.parent.postMessage({ type: 'INSPECT_ELEMENT_SELECTED', selector: generateSelector(t), tagName: t.tagName.toLowerCase() }, '*');
+  }
+  function enableInspect() {
+    isInspectMode = true;
+    injectInspectStyles();
+    if (document.body) {
+      document.body.classList.add('gemini-inspect-active');
+      document.body.addEventListener('mouseover', onHover, true);
+      document.body.addEventListener('mouseout', onMouseOut, true);
+      document.body.addEventListener('click', onClick, true);
+    }
+  }
+  function disableInspect() {
+    isInspectMode = false;
+    if (document.body) {
+      document.body.classList.remove('gemini-inspect-active');
+      document.querySelectorAll('.gemini-hover-highlight').forEach(function(x) { x.classList.remove('gemini-hover-highlight'); });
+      document.body.removeEventListener('mouseover', onHover, true);
+      document.body.removeEventListener('mouseout', onMouseOut, true);
+      document.body.removeEventListener('click', onClick, true);
+    }
+  }
+  function clearHL() {
+    document.querySelectorAll('.gemini-selected-element,.gemini-hover-highlight').forEach(function(x) {
+      x.classList.remove('gemini-selected-element', 'gemini-hover-highlight');
+    });
+    if (document.body) document.body.classList.remove('gemini-inspect-active');
+  }
+  function highlightEl(sel) {
+    injectInspectStyles();
+    try { var el = document.querySelector(sel); if (el) el.classList.add('gemini-selected-element'); } catch(e) {}
+  }
+  function cleanHTML(h) {
+    h = h.replace(/<script id="__sandbox_bridge__">[\\s\\S]*?<\\/script>/gi, '');
+    h = h.replace(/<style id="gemini-inspect-styles">[\\s\\S]*?<\\/style>/gi, '');
+    h = h.replace(/\\s*gemini-selected-element/gi, '');
+    h = h.replace(/\\s*gemini-hover-highlight/gi, '');
+    h = h.replace(/\\s*gemini-inspect-active/gi, '');
+    h = h.replace(/\\s+class="\\s*"/gi, '');
+    return h;
+  }
+  window.addEventListener('message', function(e) {
+    var d = e.data;
+    if (!d || !d.type) return;
+    switch(d.type) {
+      case 'PREVIEW_HTML':
+        var html = d.html || '', br = d.bridgeScript || '';
+        var bc = html.lastIndexOf('</body>');
+        if (bc !== -1) { html = html.substring(0, bc) + br + html.substring(bc); }
+        else { var hc = html.lastIndexOf('</html>'); if (hc !== -1) { html = html.substring(0, hc) + br + html.substring(hc); } else { html += br; } }
+        document.open(); document.write(html); document.close();
+        break;
+      case 'ENABLE_INSPECT': enableInspect(); break;
+      case 'DISABLE_INSPECT': disableInspect(); break;
+      case 'CLEAR_HIGHLIGHTS': clearHL(); break;
+      case 'HIGHLIGHT_ELEMENT': highlightEl(d.selector); break;
+      case 'GET_OUTER_HTML':
+        var oh = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
+        window.parent.postMessage({ type: 'RESPONSE', requestId: d.requestId, html: cleanHTML(oh) }, '*');
+        break;
+      case 'SET_INNER_HTML':
+        try {
+          var t = document.querySelector(d.selector);
+          if (t) {
+            t.innerHTML = d.html;
+            var fh = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
+            window.parent.postMessage({ type: 'RESPONSE', requestId: d.requestId, success: true, html: cleanHTML(fh) }, '*');
+          } else {
+            window.parent.postMessage({ type: 'RESPONSE', requestId: d.requestId, success: false }, '*');
+          }
+        } catch(err) {
+          window.parent.postMessage({ type: 'RESPONSE', requestId: d.requestId, success: false, error: err.message }, '*');
+        }
+        break;
+      case 'GET_ELEMENT_DATA':
+        try {
+          var el = document.querySelector(d.selector);
+          if (el) {
+            window.parent.postMessage({ type: 'RESPONSE', requestId: d.requestId, found: true, outerHTML: el.outerHTML, innerHTML: el.innerHTML, tagName: el.tagName.toLowerCase() }, '*');
+          } else {
+            window.parent.postMessage({ type: 'RESPONSE', requestId: d.requestId, found: false }, '*');
+          }
+        } catch(err) {
+          window.parent.postMessage({ type: 'RESPONSE', requestId: d.requestId, found: false }, '*');
+        }
+        break;
+    }
+  });
+  injectInspectStyles();
+  window.parent.postMessage({ type: 'SANDBOX_READY' }, '*');
+})();</script>`;
+
+  // Send message to sandbox iframe
+  function postToSandbox(message) {
+    if (sandboxState === 'ready' && elements.previewFrame.contentWindow) {
+      if (message.type === 'PREVIEW_HTML') {
+        sandboxState = 'writing';
+      }
+      elements.previewFrame.contentWindow.postMessage(message, SANDBOX_URL);
+    } else {
+      messageQueue.push(message);
+    }
+  }
+
+  // Send message to sandbox and wait for response (Promise-based)
+  function sendToSandbox(type, data = {}) {
+    return new Promise((resolve) => {
+      const requestId = ++requestCounter;
+      pendingRequests[requestId] = resolve;
+      postToSandbox({ type, requestId, ...data });
+      setTimeout(() => {
+        if (pendingRequests[requestId]) {
+          delete pendingRequests[requestId];
+          resolve(null);
+        }
+      }, 10000);
+    });
+  }
+
+  // Handle sandbox ready event
+  function onSandboxReady() {
+    sandboxState = 'ready';
+    const queue = [...messageQueue];
+    messageQueue = [];
+    queue.forEach(msg => postToSandbox(msg));
+    const afterReady = [...pendingAfterReady];
+    pendingAfterReady = [];
+    afterReady.forEach(msg => postToSandbox(msg));
+  }
+
+  // Handle inspect element selected from sandbox
+  function handleInspectElementSelected(data) {
+    if (!isInspectMode) return;
+
+    // Clear previous selection
+    postToSandbox({ type: 'CLEAR_HIGHLIGHTS' });
+
+    selectedPath = data.selector;
+    selectedElement = null;
+
+    // Highlight the new selection
+    postToSandbox({ type: 'HIGHLIGHT_ELEMENT', selector: data.selector });
+
+    // Update UI
+    elements.selectedElementInfo.classList.remove('hidden');
+    elements.selectedSelector.textContent = data.selector;
+    elements.editModeLabel.classList.remove('hidden');
+    elements.generateBtn.classList.add('edit-mode');
+    const btnText = elements.generateBtn.querySelector('.btn-text');
+    if (btnText) {
+      btnText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Chỉnh sửa`;
+    }
+    elements.promptInput.placeholder = `Mô tả thay đổi cho ${data.tagName}. Ví dụ: "Đổi màu nền sang xanh", "Thêm animation fade-in", "Thêm 2 card mới"...`;
+
+    showStatus(`Đã chọn: <${data.tagName}>. Nhập yêu cầu chỉnh sửa.`, 'success');
+
+    // Turn off inspect mode
+    toggleInspectMode();
+  }
+
+  // Listen for messages from sandbox iframe
+  window.addEventListener('message', (event) => {
+    if (event.origin !== SANDBOX_URL) return;
+    const data = event.data;
+    if (!data || !data.type) return;
+    switch (data.type) {
+      case 'SANDBOX_READY':
+        onSandboxReady();
+        break;
+      case 'INSPECT_ELEMENT_SELECTED':
+        handleInspectElementSelected(data);
+        break;
+      default:
+        if (data.requestId && pendingRequests[data.requestId]) {
+          pendingRequests[data.requestId](data);
+          delete pendingRequests[data.requestId];
+        }
+        break;
+    }
+  });
+
+  // Initialize sandbox iframe
+  elements.previewFrame.src = SANDBOX_URL;
+
   // Initialize
   await init();
 
@@ -64,7 +307,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Inspect mode event listeners
   elements.inspectBtn.addEventListener('click', toggleInspectMode);
   elements.clearSelection.addEventListener('click', clearElementSelection);
-  elements.previewFrame.addEventListener('load', setupPreviewInspector);
 
   // Model toggle
   let currentModelType = 'flash';
@@ -627,17 +869,12 @@ CRITICAL RULES:
     let elementTag = '';
     if (selectedPath) {
       try {
-        const iframe = elements.previewFrame;
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-        const currentElement = iframeDoc.querySelector(selectedPath);
-        
-        if (currentElement) {
-          const elementHTML = currentElement.outerHTML;
-          elementTag = currentElement.tagName.toLowerCase();
-          
-          // Get inner HTML for context
-          const innerContent = currentElement.innerHTML;
-          
+        const elementData = await sendToSandbox('GET_ELEMENT_DATA', { selector: selectedPath });
+
+        if (elementData && elementData.found) {
+          const elementHTML = elementData.outerHTML;
+          elementTag = elementData.tagName;
+
           finalPrompt = `TASK: Modify this HTML element's INNER content.
 
 CURRENT ELEMENT (${elementTag}):
@@ -742,58 +979,54 @@ NEW INNER HTML:`;
       html = tryExtractHTML(message.error);
     }
     
+    // Fix markdown-formatted URLs that Gemini sometimes generates
+    if (html) html = fixMarkdownUrls(html);
+
     console.log('Extracted HTML length:', html?.length || 0);
     console.log('HTML preview:', html?.substring(0, 200) || 'null');
 
     if (html || (selectedPath && (message.rawText || message.html))) {
       // Check if we're in element edit mode
       if (selectedPath) {
-        // Replace only the selected element's content
+        // Replace only the selected element's content via sandbox postMessage
         try {
-          const iframe = elements.previewFrame;
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-          const targetElement = iframeDoc.querySelector(selectedPath);
-          
-          if (targetElement) {
-            // For element edit, prefer rawText/html from message over extracted full-doc html
-            // because extractInnerContent is smarter at handling the raw response
-            let rawContent = message.html || message.rawText || html || '';
-            const newContent = extractInnerContent(rawContent, selectedPath);
-            
-            console.log('Element edit - raw:', rawContent.substring(0, 200));
-            console.log('Element edit - extracted:', newContent.substring(0, 200));
-            
-            if (!newContent || newContent.length < 2) {
-              showStatus('Không thể trích xuất nội dung HTML từ phản hồi AI', 'error');
-              return;
-            }
-            
-            targetElement.innerHTML = newContent;
-            
-            // Update selectedElement reference to the new element
-            selectedElement = targetElement;
-            
-            // Update currentHTML with the modified document (clean inspect artifacts)
-            currentHTML = '<!DOCTYPE html>\n' + iframeDoc.documentElement.outerHTML;
-            currentHTML = cleanHTMLForSave(currentHTML);
-            
+          let rawContent = message.html || message.rawText || html || '';
+          rawContent = fixMarkdownUrls(rawContent);
+          const newContent = extractInnerContent(rawContent, selectedPath);
+
+          console.log('Element edit - raw:', rawContent.substring(0, 200));
+          console.log('Element edit - extracted:', newContent.substring(0, 200));
+
+          if (!newContent || newContent.length < 2) {
+            showStatus('Không thể trích xuất nội dung HTML từ phản hồi AI', 'error');
+            return;
+          }
+
+          const result = await sendToSandbox('SET_INNER_HTML', {
+            selector: selectedPath,
+            html: newContent
+          });
+
+          if (result && result.success) {
+            currentHTML = cleanHTMLForSave(result.html);
+
             // Clear revert state after successful element edit
             isReverted = false;
             revertedFromPrompt = '';
-            
+
             // Save to IndexedDB with page ID
             if (currentPageId) {
               await htmlDB.saveHTML(currentPageId, lastPromptText, currentHTML);
               await htmlDB.updatePage(currentPageId, { lastHtml: currentHTML, lastPrompt: lastPromptText });
             }
-            
+
             // Reload history
             await loadHistory();
-            
+
             showStatus('Đã cập nhật phần tử thành công!', 'success');
-            
+
             // Keep selection active for further edits
-            highlightSelectedElement(targetElement);
+            highlightSelectedElement(selectedPath);
           } else {
             showStatus('Không tìm thấy phần tử để cập nhật', 'error');
           }
@@ -871,7 +1104,14 @@ NEW INNER HTML:`;
     
     return null;
   }
-  
+
+  // Fix markdown-formatted URLs in HTML attributes
+  // Gemini sometimes generates: href="[actual-url](google-search-url)" instead of href="actual-url"
+  function fixMarkdownUrls(html) {
+    if (!html) return html;
+    return html.replace(/((?:href|src|action|poster|data-src)\s*=\s*["'])\[([^\]]+)\]\([^)]*\)(["'])/gi, '$1$2$3');
+  }
+
   // Extract inner content from Gemini response (for element edit mode)
   function extractInnerContent(html, selectedSelector) {
     if (!html) return '';
@@ -955,16 +1195,20 @@ NEW INNER HTML:`;
     return content.trim();
   }
 
-  // Update preview iframe
+  // Update preview iframe via sandbox postMessage
   function updatePreview(html) {
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    elements.previewFrame.src = url;
-    
-    // Setup inspector after iframe loads (with small delay to ensure DOM is ready)
-    setTimeout(() => {
-      setupPreviewInspector();
-    }, 100);
+    pendingAfterReady = [];
+    if (isInspectMode) {
+      pendingAfterReady.push({ type: 'ENABLE_INSPECT' });
+    }
+    if (selectedPath) {
+      pendingAfterReady.push({ type: 'HIGHLIGHT_ELEMENT', selector: selectedPath });
+    }
+    postToSandbox({
+      type: 'PREVIEW_HTML',
+      html: html,
+      bridgeScript: BRIDGE_SCRIPT
+    });
   }
 
   // Show empty preview
@@ -1132,249 +1376,31 @@ NEW INNER HTML:`;
     }
   }
 
-  // Setup preview inspector when iframe loads
-  function setupPreviewInspector() {
-    try {
-      const iframe = elements.previewFrame;
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-      
-      if (!iframeDoc || !iframeDoc.body) return;
-      
-      // Inject inspect styles
-      injectInspectStyles(iframeDoc);
-      
-      // If inspect mode is active, re-enable it
-      if (isInspectMode) {
-        enableInspectInIframe();
-      }
-      
-      // If there was a selected element, try to re-select it
-      if (selectedPath) {
-        const element = iframeDoc.querySelector(selectedPath);
-        if (element) {
-          highlightSelectedElement(element);
-        }
-      } else {
-        // No active selection — clean any leftover gemini highlights from saved HTML
-        // Keep the style element (it only applies when classes are present)
-        const leftover = iframeDoc.querySelectorAll('.gemini-selected-element, .gemini-hover-highlight');
-        leftover.forEach(el => {
-          el.classList.remove('gemini-selected-element');
-          el.classList.remove('gemini-hover-highlight');
-        });
-        iframeDoc.body?.classList.remove('gemini-inspect-active');
-      }
-    } catch (e) {
-      console.log('Cannot setup inspector:', e);
-    }
-  }
-
-  // Inject inspect styles into iframe
-  function injectInspectStyles(iframeDoc) {
-    const styleId = 'gemini-inspect-styles';
-    if (iframeDoc.getElementById(styleId)) return;
-    
-    const style = iframeDoc.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      .gemini-hover-highlight {
-        outline: 2px dashed #00ff88 !important;
-        outline-offset: 2px !important;
-        background-color: rgba(0, 255, 136, 0.1) !important;
-        cursor: crosshair !important;
-      }
-      .gemini-selected-element {
-        outline: 3px solid #00ff88 !important;
-        outline-offset: 2px !important;
-        background-color: rgba(0, 255, 136, 0.15) !important;
-        box-shadow: 0 0 20px rgba(0, 255, 136, 0.3) !important;
-      }
-      .gemini-inspect-active * {
-        cursor: crosshair !important;
-      }
-    `;
-    iframeDoc.head.appendChild(style);
-  }
-
-  // Enable inspect mode in iframe
+  // Enable inspect mode in iframe (via sandbox postMessage)
   function enableInspectInIframe() {
-    try {
-      const iframe = elements.previewFrame;
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-      
-      if (!iframeDoc || !iframeDoc.body) return;
-      
-      iframeDoc.body.classList.add('gemini-inspect-active');
-      
-      // Add event listeners
-      iframeDoc.body.addEventListener('mouseover', handleInspectHover);
-      iframeDoc.body.addEventListener('mouseout', handleInspectMouseOut);
-      iframeDoc.body.addEventListener('click', handleInspectClick);
-    } catch (e) {
-      console.log('Cannot enable inspect in iframe:', e);
-    }
+    postToSandbox({ type: 'ENABLE_INSPECT' });
   }
 
-  // Disable inspect mode in iframe
+  // Disable inspect mode in iframe (via sandbox postMessage)
   function disableInspectInIframe() {
-    try {
-      const iframe = elements.previewFrame;
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-      
-      if (!iframeDoc || !iframeDoc.body) return;
-      
-      iframeDoc.body.classList.remove('gemini-inspect-active');
-      
-      // Remove hover highlights
-      const highlighted = iframeDoc.querySelectorAll('.gemini-hover-highlight');
-      highlighted.forEach(el => el.classList.remove('gemini-hover-highlight'));
-      
-      // Remove event listeners
-      iframeDoc.body.removeEventListener('mouseover', handleInspectHover);
-      iframeDoc.body.removeEventListener('mouseout', handleInspectMouseOut);
-      iframeDoc.body.removeEventListener('click', handleInspectClick);
-    } catch (e) {
-      console.log('Cannot disable inspect in iframe:', e);
-    }
+    postToSandbox({ type: 'DISABLE_INSPECT' });
   }
 
-  // Handle hover during inspect
-  function handleInspectHover(e) {
-    if (!isInspectMode) return;
-    e.stopPropagation();
-    
-    const target = e.target;
-    if (target === e.currentTarget) return; // Don't highlight body itself
-    if (target.classList.contains('gemini-selected-element')) return;
-    
-    target.classList.add('gemini-hover-highlight');
+  // Highlight selected element (via sandbox postMessage)
+  function highlightSelectedElement(selector) {
+    postToSandbox({ type: 'HIGHLIGHT_ELEMENT', selector: selector });
   }
 
-  // Handle mouse out during inspect
-  function handleInspectMouseOut(e) {
-    if (!isInspectMode) return;
-    e.stopPropagation();
-    
-    const target = e.target;
-    target.classList.remove('gemini-hover-highlight');
-  }
-
-  // Handle click during inspect
-  function handleInspectClick(e) {
-    if (!isInspectMode) return;
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const target = e.target;
-    if (target === e.currentTarget) return; // Don't select body itself
-    
-    // Remove hover highlight
-    target.classList.remove('gemini-hover-highlight');
-    
-    // Select the element
-    selectElement(target);
-    
-    // Turn off inspect mode
-    toggleInspectMode();
-  }
-
-  // Select an element for editing
-  function selectElement(element) {
-    // Clear previous selection
-    clearHighlights();
-    
-    // Store the element and generate a unique selector
-    selectedElement = element;
-    selectedPath = generateUniqueSelector(element);
-    
-    // Highlight the selected element
-    highlightSelectedElement(element);
-    
-    // Update UI
-    elements.selectedElementInfo.classList.remove('hidden');
-    elements.selectedSelector.textContent = selectedPath;
-    elements.editModeLabel.classList.remove('hidden');
-    elements.generateBtn.classList.add('edit-mode');
-    const btnText = elements.generateBtn.querySelector('.btn-text');
-    if (btnText) {
-      btnText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Chỉnh sửa`;
-    }
-    
-    // Update placeholder
-    elements.promptInput.placeholder = `Mô tả thay đổi cho ${element.tagName.toLowerCase()}. Ví dụ: "Đổi màu nền sang xanh", "Thêm animation fade-in", "Thêm 2 card mới"...`;
-    
-    showStatus(`Đã chọn: <${element.tagName.toLowerCase()}>. Nhập yêu cầu chỉnh sửa.`, 'success');
-  }
-
-  // Generate unique CSS selector for element
-  function generateUniqueSelector(element) {
-    const path = [];
-    let current = element;
-    
-    while (current && current !== document.body && current !== document.documentElement) {
-      let selector = current.tagName.toLowerCase();
-      
-      // Add ID if available
-      if (current.id) {
-        selector = `#${current.id}`;
-        path.unshift(selector);
-        break; // ID is unique, no need to go further
-      }
-      
-      // Add classes
-      if (current.className && typeof current.className === 'string') {
-        const classes = current.className
-          .split(' ')
-          .filter(c => c && !c.startsWith('gemini-'))
-          .slice(0, 2);
-        if (classes.length > 0) {
-          selector += '.' + classes.join('.');
-        }
-      }
-      
-      // Add nth-child for uniqueness
-      const parent = current.parentElement;
-      if (parent) {
-        const siblings = Array.from(parent.children).filter(c => c.tagName === current.tagName);
-        if (siblings.length > 1) {
-          const index = siblings.indexOf(current) + 1;
-          selector += `:nth-of-type(${index})`;
-        }
-      }
-      
-      path.unshift(selector);
-      current = current.parentElement;
-    }
-    
-    return path.join(' > ');
-  }
-
-  // Highlight selected element
-  function highlightSelectedElement(element) {
-    element.classList.add('gemini-selected-element');
-  }
-
-  // Clear all highlights
+  // Clear all highlights (via sandbox postMessage)
   function clearHighlights() {
-    try {
-      const iframe = elements.previewFrame;
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-      
-      if (!iframeDoc) return;
-      
-      const highlighted = iframeDoc.querySelectorAll('.gemini-selected-element, .gemini-hover-highlight');
-      highlighted.forEach(el => {
-        el.classList.remove('gemini-selected-element');
-        el.classList.remove('gemini-hover-highlight');
-      });
-    } catch (e) {
-      console.log('Cannot clear highlights:', e);
-    }
+    postToSandbox({ type: 'CLEAR_HIGHLIGHTS' });
   }
 
-  // Clean gemini inspect artifacts from HTML (classes, styles injected into iframe)
+  // Clean gemini inspect artifacts from HTML
   function cleanHTMLForSave(html) {
     if (!html) return html;
+    // Remove sandbox bridge script
+    html = html.replace(/<script id="__sandbox_bridge__">[\s\S]*?<\/script>/gi, '');
     // Remove gemini-selected-element and gemini-hover-highlight classes
     html = html.replace(/\s*class="gemini-selected-element"/gi, '');
     html = html.replace(/\s*class="gemini-hover-highlight"/gi, '');
