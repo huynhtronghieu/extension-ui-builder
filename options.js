@@ -83,6 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Netlify deploy state
   let netlifyToken = null;
+  let globalNetlifySiteId = null;
+  let globalNetlifySiteUrl = null;
 
   // Link navigation modal state
   let pendingLinkPageName = null;
@@ -426,7 +428,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (href.startsWith('http://') || href.startsWith('https://')) {
       window.parent.postMessage({ type: 'LINK_EXTERNAL', href: href }, '*');
     } else {
-      window.parent.postMessage({ type: 'LINK_CLICKED', href: href }, '*');
+      window.parent.postMessage({ type: 'LINK_CLICKED', href: href, text: (anchor.innerText || '').trim() }, '*');
     }
   }, true);
   window.addEventListener('message', function(e) {
@@ -561,7 +563,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleInspectElementSelected(data);
         break;
       case 'LINK_CLICKED':
-        handlePreviewLinkClick(data.href);
+        handlePreviewLinkClick(data.href, data.text);
         break;
       case 'LINK_EXTERNAL':
         chrome.tabs.create({ url: data.href });
@@ -631,6 +633,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   elements.disconnectNetlify.addEventListener('click', async () => {
     if (!confirm('Ngắt kết nối Netlify? Token sẽ bị xóa.')) return;
     await clearNetlifyToken();
+    await clearGlobalNetlifySite();
     hideDeployedUrl();
     showStatus('Đã ngắt kết nối Netlify', 'info');
   });
@@ -775,8 +778,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Check Gemini connection status
       await checkGeminiStatus();
 
-      // Load Netlify token
+      // Load Netlify token and global site
       await loadNetlifyToken();
+      await loadGlobalNetlifySite();
 
       // Load pages
       await loadPages();
@@ -906,7 +910,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       elements.promptInput.value = '';
       clearGhostText();
       cancelAISuggestion();
-      hideDeployedUrl();
+      if (globalNetlifySiteUrl) {
+        showDeployedUrl(globalNetlifySiteUrl);
+      } else {
+        hideDeployedUrl();
+      }
 
       showStatus(`Đã tạo Page ${pageNumber}`, 'success');
     } catch (error) {
@@ -957,9 +965,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       cancelAISuggestion();
       aiSuggestionCache.clear();
 
-      // Update deployed URL bar for this page
-      if (page && page.netlifySiteUrl) {
-        showDeployedUrl(page.netlifySiteUrl);
+      // Update deployed URL bar (global site)
+      if (globalNetlifySiteUrl) {
+        showDeployedUrl(globalNetlifySiteUrl);
       } else {
         hideDeployedUrl();
       }
@@ -1184,13 +1192,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Generate HTML via Gemini
-  async function generateHTML() {
+  async function generateHTML(promptOverride) {
     if (!currentPageId) {
       showStatus('Vui lòng chọn hoặc tạo page trước', 'error');
       return;
     }
-    
-    let prompt = elements.promptInput.value.trim();
+
+    let prompt = (typeof promptOverride === 'string') ? promptOverride : elements.promptInput.value.trim();
     
     if (!prompt) {
       showStatus('Vui lòng nhập mô tả', 'error');
@@ -2057,6 +2065,123 @@ NEW INNER HTML:`;
     });
   }
 
+  // Global Netlify site ID storage (one site for all pages)
+  async function loadGlobalNetlifySite() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['globalNetlifySiteId', 'globalNetlifySiteUrl'], (result) => {
+        globalNetlifySiteId = result.globalNetlifySiteId || null;
+        globalNetlifySiteUrl = result.globalNetlifySiteUrl || null;
+        resolve();
+      });
+    });
+  }
+
+  async function saveGlobalNetlifySite(siteId, siteUrl) {
+    globalNetlifySiteId = siteId;
+    globalNetlifySiteUrl = siteUrl;
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ globalNetlifySiteId: siteId, globalNetlifySiteUrl: siteUrl }, resolve);
+    });
+  }
+
+  async function clearGlobalNetlifySite() {
+    globalNetlifySiteId = null;
+    globalNetlifySiteUrl = null;
+    return new Promise((resolve) => {
+      chrome.storage.local.remove(['globalNetlifySiteId', 'globalNetlifySiteUrl'], resolve);
+    });
+  }
+
+  // Convert page name to URL slug (Vietnamese-safe)
+  function pageNameToSlug(name) {
+    return name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  // Build deploy manifest: assign deploy paths to all pages
+  function buildDeployManifest(pages) {
+    // pages from getAllPages() are newest-first; reverse for oldest-first
+    const sorted = [...pages].reverse();
+    const manifest = [];
+    const usedSlugs = new Set();
+
+    sorted.forEach((page, index) => {
+      if (!page.lastHtml) return;
+
+      let slug = pageNameToSlug(page.name) || 'page';
+      // Handle slug collisions
+      let uniqueSlug = slug;
+      let counter = 2;
+      while (usedSlugs.has(uniqueSlug)) {
+        uniqueSlug = `${slug}-${counter++}`;
+      }
+      usedSlugs.add(uniqueSlug);
+
+      const deployPath = (manifest.length === 0)
+        ? '/index.html'
+        : `/${uniqueSlug}/index.html`;
+
+      manifest.push({
+        pageId: page.id,
+        name: page.name,
+        slug: uniqueSlug,
+        deployPath: deployPath,
+        html: page.lastHtml
+      });
+    });
+
+    return manifest;
+  }
+
+  // Rewrite inter-page links for deployed site
+  function rewriteLinksForDeploy(html, manifest) {
+    const nameToPath = {};
+    const slugToPath = {};
+
+    manifest.forEach(entry => {
+      const cleanPath = entry.deployPath === '/index.html' ? '/' : entry.deployPath.replace('/index.html', '/');
+      nameToPath[entry.name.normalize('NFC').toLowerCase()] = cleanPath;
+      slugToPath[entry.slug] = cleanPath;
+    });
+
+    return html.replace(
+      /href=["']([^"'#][^"']*)["']/gi,
+      (match, href) => {
+        // Skip external links
+        if (/^(https?:|mailto:|tel:|javascript:)/i.test(href)) return match;
+
+        // Try matching via extractPageNameFromHref
+        const pageName = extractPageNameFromHref(href);
+        if (pageName && nameToPath[pageName.normalize('NFC').toLowerCase()]) {
+          return `href="${nameToPath[pageName.normalize('NFC').toLowerCase()]}"`;
+        }
+
+        // Try matching raw slug from href
+        const rawSlug = href.replace(/\.(html?|php|asp|jsp)$/i, '')
+          .split('/').pop()
+          .toLowerCase()
+          .replace(/[-_]/g, '-');
+        if (rawSlug && slugToPath[rawSlug]) {
+          return `href="${slugToPath[rawSlug]}"`;
+        }
+
+        // index → root
+        if (rawSlug === 'index' || rawSlug === '') {
+          return `href="/"`;
+        }
+
+        return match;
+      }
+    );
+  }
+
   // Compute SHA1 hash using Web Crypto API
   async function sha1(content) {
     const encoder = new TextEncoder();
@@ -2141,15 +2266,76 @@ NEW INNER HTML:`;
     return deploy;
   }
 
-  // Main deploy handler
-  async function handleDeploy() {
-    if (!currentHTML) {
-      showStatus('Không có HTML để deploy', 'error');
-      return;
+  // Deploy multiple HTML files to a Netlify site
+  async function netlifyDeployMulti(token, siteId, fileMap) {
+    // fileMap: { '/index.html': htmlString, '/san-pham/index.html': htmlString2, ... }
+
+    // Step 1: Compute SHA1 of each file
+    const files = {};
+    const contentByHash = {};
+    const pathByHash = {};
+
+    for (const [path, content] of Object.entries(fileMap)) {
+      const hash = await sha1(content);
+      files[path] = hash;
+      contentByHash[hash] = content;
+      pathByHash[hash] = path;
     }
 
-    if (!currentPageId) {
-      showStatus('Vui lòng chọn page trước', 'error');
+    // Step 2: Create deploy with file digest
+    const deployResponse = await fetch(`${NETLIFY_API}/sites/${siteId}/deploys`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ files })
+    });
+
+    if (deployResponse.status === 401) throw new Error('TOKEN_INVALID');
+    if (deployResponse.status === 404) throw new Error('SITE_NOT_FOUND');
+    if (!deployResponse.ok) {
+      const text = await deployResponse.text();
+      throw new Error(`Deploy error: ${deployResponse.status} - ${text}`);
+    }
+
+    const deploy = await deployResponse.json();
+
+    // Step 3: Upload each required file
+    if (deploy.required && deploy.required.length > 0) {
+      for (const requiredHash of deploy.required) {
+        const content = contentByHash[requiredHash];
+        const path = pathByHash[requiredHash];
+        if (content && path) {
+          const uploadResponse = await fetch(
+            `${NETLIFY_API}/deploys/${deploy.id}/files${path}`,
+            {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/octet-stream'
+              },
+              body: content
+            }
+          );
+          if (!uploadResponse.ok) {
+            const text = await uploadResponse.text();
+            throw new Error(`Upload error for ${path}: ${uploadResponse.status} - ${text}`);
+          }
+        }
+      }
+    }
+
+    return deploy;
+  }
+
+  // Main deploy handler — deploys ALL pages to a single Netlify site
+  async function handleDeploy() {
+    const allPages = await htmlDB.getAllPages();
+    const pagesWithContent = allPages.filter(p => p.lastHtml);
+
+    if (pagesWithContent.length === 0) {
+      showStatus('Không có trang nào có nội dung để deploy', 'error');
       return;
     }
 
@@ -2158,34 +2344,37 @@ NEW INNER HTML:`;
       return;
     }
 
-    // Start deploying
     elements.deployBtn.classList.add('deploying');
-    showStatus('Đang deploy lên Netlify...', 'info');
+    showStatus(`Đang deploy ${pagesWithContent.length} trang lên Netlify...`, 'info');
 
     try {
-      const page = await htmlDB.getPage(currentPageId);
-      let siteId = page?.netlifySiteId;
-      let siteUrl = page?.netlifySiteUrl;
+      // Get or create the single global site
+      let siteId = globalNetlifySiteId;
+      let siteUrl = globalNetlifySiteUrl;
 
-      // Create site if this page doesn't have one yet
       if (!siteId) {
         showStatus('Đang tạo site mới trên Netlify...', 'info');
         const site = await netlifyCreateSite(netlifyToken);
         siteId = site.id;
         siteUrl = site.ssl_url || site.url;
-        await htmlDB.updatePage(currentPageId, {
-          netlifySiteId: siteId,
-          netlifySiteUrl: siteUrl
-        });
+        await saveGlobalNetlifySite(siteId, siteUrl);
       }
 
-      // Deploy the HTML
-      await netlifyDeploy(netlifyToken, siteId, currentHTML);
+      // Build manifest and rewrite links
+      const manifest = buildDeployManifest(pagesWithContent);
+      const fileMap = {};
+      for (const entry of manifest) {
+        fileMap[entry.deployPath] = rewriteLinksForDeploy(entry.html, manifest);
+      }
+
+      // Deploy all files
+      showStatus(`Đang upload ${manifest.length} trang...`, 'info');
+      await netlifyDeployMulti(netlifyToken, siteId, fileMap);
 
       elements.deployBtn.classList.remove('deploying');
       elements.deployBtn.classList.add('deployed');
       showDeployedUrl(siteUrl);
-      showStatus('Deploy thành công!', 'success');
+      showStatus(`Deploy thành công! ${manifest.length} trang đã được publish.`, 'success');
 
     } catch (error) {
       elements.deployBtn.classList.remove('deploying');
@@ -2199,18 +2388,21 @@ NEW INNER HTML:`;
       }
 
       if (error.message === 'SITE_NOT_FOUND') {
-        // Site was deleted on Netlify, create a new one and retry
+        // Global site was deleted on Netlify, recreate and retry
         showStatus('Site đã bị xóa, đang tạo lại...', 'info');
         try {
           const site = await netlifyCreateSite(netlifyToken);
-          await htmlDB.updatePage(currentPageId, {
-            netlifySiteId: site.id,
-            netlifySiteUrl: site.ssl_url || site.url
-          });
-          await netlifyDeploy(netlifyToken, site.id, currentHTML);
+          const newSiteUrl = site.ssl_url || site.url;
+          await saveGlobalNetlifySite(site.id, newSiteUrl);
+          const manifest = buildDeployManifest(pagesWithContent);
+          const fileMap = {};
+          for (const entry of manifest) {
+            fileMap[entry.deployPath] = rewriteLinksForDeploy(entry.html, manifest);
+          }
+          await netlifyDeployMulti(netlifyToken, site.id, fileMap);
           elements.deployBtn.classList.add('deployed');
-          showDeployedUrl(site.ssl_url || site.url);
-          showStatus('Deploy thành công!', 'success');
+          showDeployedUrl(newSiteUrl);
+          showStatus(`Deploy thành công! ${manifest.length} trang đã được publish.`, 'success');
         } catch (retryError) {
           console.error('Retry deploy error:', retryError);
           showStatus('Không thể deploy: ' + retryError.message, 'error');
@@ -2273,10 +2465,13 @@ NEW INNER HTML:`;
   }
 
   // Handle link click from preview iframe
-  async function handlePreviewLinkClick(href) {
+  async function handlePreviewLinkClick(href, linkText) {
     if (isGenerating) return;
 
-    const pageName = extractPageNameFromHref(href)  || 'Trang Mới ' + Date.now();
+    // Use link innerText for page name, fall back to href-derived name
+    const pageName = (linkText && linkText.length > 0 && linkText.length < 100)
+      ? linkText
+      : extractPageNameFromHref(href) || 'Trang Mới ' + Date.now();
     if (!pageName) {
       showStatus('Liên kết không hợp lệ', 'info');
       return;
@@ -2284,9 +2479,17 @@ NEW INNER HTML:`;
 
     // Check if a page with this name already exists
     const pages = await htmlDB.getAllPages();
-    const matchedPage = pages.find(p =>
-      p.name.toLowerCase() === pageName.toLowerCase()
-    );
+    // Derive slug from raw href for fallback matching
+    const hrefSlug = href
+      ? href.replace(/\.(html?|php|asp|jsp)$/i, '').split('/').pop().toLowerCase().replace(/[-_]/g, '-').replace(/[^a-z0-9-]/g, '')
+      : '';
+    const matchedPage = pages.find(p => {
+      // Unicode-safe exact name match
+      if (p.name.normalize('NFC').toLowerCase() === pageName.normalize('NFC').toLowerCase()) return true;
+      // Slug-based fallback: page name slug matches href slug
+      if (hrefSlug && pageNameToSlug(p.name) === hrefSlug) return true;
+      return false;
+    });
 
     if (matchedPage) {
       // Page exists, navigate to it
@@ -2304,7 +2507,7 @@ NEW INNER HTML:`;
     pendingLinkPageName = pageName;
     designContextHTML = currentHTML;
     elements.linkModalPageName.textContent = pageName;
-    elements.linkModalPromptInput.value = `Thay nội dung chính thành nội dung phù hợp cho trang ${pageName}. Giữ nguyên toàn bộ style, header, footer, nav.`;
+    elements.linkModalPromptInput.value = `Tạo trang ${pageName}`;
     clearModalGhostText();
     cancelAISuggestion();
     elements.linkModal.classList.remove('hidden');
@@ -2329,7 +2532,9 @@ NEW INNER HTML:`;
 
     const pageName = pendingLinkPageName;
     const contextHTML = designContextHTML;
-    const userPrompt = elements.linkModalPromptInput.value.trim() || `Thay nội dung chính thành nội dung phù hợp cho trang ${pageName}. Giữ nguyên toàn bộ style, header, footer, nav.`;
+    const userPrompt = elements.linkModalPromptInput.value.trim() || `Tạo trang ${pageName}`;
+    // Internal instruction appended behind the scenes for Gemini
+    const fullPrompt = `${userPrompt}. Giữ nguyên toàn bộ style, header, footer, nav. Thay nội dung chính thành nội dung phù hợp.`;
     hideLinkModal();
 
     try {
@@ -2349,17 +2554,21 @@ NEW INNER HTML:`;
 
       // Show empty preview temporarily
       showEmptyPreview();
-      hideDeployedUrl();
+      if (globalNetlifySiteUrl) {
+        showDeployedUrl(globalNetlifySiteUrl);
+      } else {
+        hideDeployedUrl();
+      }
 
-      // Set the user's prompt from the modal into the main prompt input
+      // Set the user's visible prompt from the modal into the main prompt input
       elements.promptInput.value = userPrompt;
       clearGhostText();
       cancelAISuggestion();
 
       showStatus(`Đã tạo trang "${pageName}", đang tạo nội dung...`, 'success');
 
-      // Auto-trigger generation
-      elements.generateBtn.click();
+      // Auto-trigger generation with full prompt (includes internal instructions)
+      generateHTML(fullPrompt);
     } catch (error) {
       console.error('Failed to create linked page:', error);
       showStatus('Không thể tạo trang mới', 'error');
