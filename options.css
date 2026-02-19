@@ -620,6 +620,26 @@ body {
   visibility: visible;
 }
 
+.btn-normal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: auto;
+}
+
+.btn-normal:hover {
+  background: var(--border-color);
+  color: var(--accent-secondary);
+}
+
 .btn-small {
   display: flex;
   align-items: center;
