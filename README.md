@@ -1,6 +1,6 @@
 # ✨ Gemini HTML Builder — Chrome Extension
 
-Chrome Extension tạo HTML/UI từ Gemini AI với preview trực tiếp, inspect & chỉnh sửa phần tử, quản lý đa page và lịch sử phiên bản.
+Chrome Extension tạo HTML/UI với Gemini AI với preview trực tiếp, inspect & chỉnh sửa phần tử, quản lý đa page và lịch sử phiên bản.
 
 ## Tính năng
 

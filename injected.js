@@ -4,7 +4,15 @@
 (function() {
   'use strict';
 
-  console.log('UI Builder từ Gemini AI: Injected script loaded at', new Date().toISOString());
+  // Prevent duplicate execution when script is re-injected
+  if (window.__geminiInjectedScriptLoaded) {
+    console.log('UI Builder: Injected script already loaded, skipping');
+    window.postMessage({ type: 'GEMINI_INJECTED_READY' }, '*');
+    return;
+  }
+  window.__geminiInjectedScriptLoaded = true;
+
+  console.log('UI Builder với Gemini AI: Injected script loaded at', new Date().toISOString());
 
   // Notify content script that injected script is ready
   window.postMessage({ type: 'GEMINI_INJECTED_READY' }, '*');
@@ -1017,5 +1025,5 @@ Start your response with exactly: <!DOCTYPE html>`;
     extractTokens();
   }, 2000);
 
-  console.log('UI Builder từ Gemini AI: Injected script ready');
+  console.log('UI Builder với Gemini AI: Injected script ready');
 })();

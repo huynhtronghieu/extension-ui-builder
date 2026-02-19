@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // DOM Elements
   const elements = {
-    connectionStatus: document.getElementById('connectionStatus'),
     // Page section
     pageList: document.getElementById('pageList'),
     newPageBtn: document.getElementById('newPageBtn'),
@@ -616,21 +615,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Update connection status UI
   function updateConnectionStatus(connected, state = null) {
     isConnected = connected;
-    const statusDot = elements.connectionStatus?.querySelector('.status-dot');
-    const statusText = elements.connectionStatus?.querySelector('.status-text');
 
     if (state === 'opening') {
-      if (statusDot) statusDot.className = 'status-dot connecting';
-      if (statusText) statusText.textContent = 'Đang mở...';
+      showStatus('Đang mở Gemini...', 'info');
       return;
     }
 
     if (connected) {
-      if (statusDot) statusDot.className = 'status-dot connected';
-      if (statusText) statusText.textContent = 'Đã kết nối';
+      showStatus('Đã kết nối Gemini', 'success');
     } else {
-      if (statusDot) statusDot.className = 'status-dot disconnected';
-      if (statusText) statusText.textContent = 'Chưa kết nối';
+      showStatus('Chưa kết nối Gemini', 'error');
     }
   }
 
@@ -741,7 +735,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         // Load last prompt
-        elements.promptInput.value = page.lastPrompt || '';
+        elements.promptInput.value = '';
       }
       
       // Clear revert state when switching pages
@@ -1569,14 +1563,25 @@ NEW INNER HTML:`;
 
   // Show status message
   function showStatus(message, type = 'info') {
-    elements.status.textContent = message;
-    elements.status.className = `status-bar ${type}`;
-    elements.status.classList.remove('hidden');
+    const el = elements.status;
+    el.textContent = message;
+    el.className = 'toast-island visible ' + type;
 
-    // Auto hide after 3 seconds (except for info during generation)
+    // Add loading state during generation
+    if (type === 'info' && elements.generateBtn.classList.contains('loading')) {
+      el.classList.add('loading');
+    }
+
+    // Clear existing hide timer
+    if (el._hideTimer) {
+      clearTimeout(el._hideTimer);
+      el._hideTimer = null;
+    }
+
+    // Auto hide after 3 seconds (except info during generation)
     if (type !== 'info' || !elements.generateBtn.classList.contains('loading')) {
-      setTimeout(() => {
-        elements.status.classList.add('hidden');
+      el._hideTimer = setTimeout(() => {
+        el.classList.remove('visible');
       }, 3000);
     }
   }

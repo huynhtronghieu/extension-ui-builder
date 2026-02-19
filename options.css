@@ -96,38 +96,6 @@ body {
   background-clip: text;
 }
 
-.connection-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--bg-tertiary);
-  border-radius: 20px;
-  font-size: 13px;
-}
-
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-.status-dot.connected {
-  background: var(--accent-primary);
-  box-shadow: 0 0 10px var(--accent-primary);
-}
-
-.status-dot.disconnected {
-  background: var(--accent-danger);
-  animation: none;
-}
-
-.status-dot.connecting {
-  background: var(--accent-warning, #f59e0b);
-  animation: spin 1s linear infinite;
-}
-
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -136,10 +104,6 @@ body {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
-}
-
-.help-text.connecting {
-  color: var(--accent-warning, #f59e0b);
 }
 
 /* Main Content */
@@ -973,46 +937,91 @@ body {
   flex-shrink: 0;
 }
 
-/* Status Bar */
-.status-bar {
-  padding: 12px 16px;
-  border-radius: 8px;
+/* Dynamic Island Toast */
+.toast-island {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  z-index: 9999;
+
+  /* Pill shape */
+  padding: 0 20px;
+  height: 40px;
+  border-radius: 50px;
+
+  /* Dark glass background like Apple Dynamic Island */
+  background: rgba(20, 20, 30, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+
+  /* Text */
   font-size: 13px;
-  text-align: center;
-  animation: slideIn 0.3s ease;
+  font-weight: 500;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+
+  /* Hidden by default */
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.status-bar.hidden {
-  display: none;
+/* Visible state */
+.toast-island.visible {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transform: translateX(-50%) scale(1);
 }
 
-.status-bar.success {
-  background: rgba(0, 255, 136, 0.1);
-  border: 1px solid var(--accent-primary);
-  color: var(--accent-primary);
+/* Type-specific accent - subtle colored dot indicator */
+.toast-island::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.status-bar.error {
-  background: rgba(255, 71, 87, 0.1);
-  border: 1px solid var(--accent-danger);
-  color: var(--accent-danger);
+.toast-island.success::before {
+  background: var(--accent-primary);
+  box-shadow: 0 0 8px var(--accent-primary);
 }
 
-.status-bar.info {
-  background: rgba(0, 180, 216, 0.1);
-  border: 1px solid var(--accent-secondary);
-  color: var(--accent-secondary);
+.toast-island.error::before {
+  background: var(--accent-danger);
+  box-shadow: 0 0 8px var(--accent-danger);
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.toast-island.info::before {
+  background: var(--accent-secondary);
+  box-shadow: 0 0 8px var(--accent-secondary);
+}
+
+/* Expanded state during generation (wider pill with progress feel) */
+.toast-island.loading {
+  height: 32px;
+  padding: 0 24px;
+  border: 1px solid rgba(0, 180, 216, 0.3);
+}
+
+.toast-island.loading::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent-secondary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 /* Scrollbar */

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "UI Builder từ Gemini AI",
+  "name": "UI Builder với Gemini AI",
   "version": "1.0.0",
-  "description": "Tạo HTML từ Gemini AI và xem preview trực tiếp",
+  "description": "Tạo HTML với Gemini AI và xem preview trực tiếp",
   "permissions": [
     "storage",
     "tabs",

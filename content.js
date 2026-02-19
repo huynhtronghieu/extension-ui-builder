@@ -10,14 +10,12 @@
 
   // Check if already initialized
   if (window.__geminiHtmlBuilderInitialized) {
-    console.log('UI Builder từ Gemini AI: Re-injecting script...');
-    // Just re-inject the page script
-    injectPageScript();
+    console.log('UI Builder: Content script already initialized, skipping');
     return;
   }
   window.__geminiHtmlBuilderInitialized = true;
 
-  console.log('UI Builder từ Gemini AI: Content script loaded at', new Date().toISOString());
+  console.log('UI Builder với Gemini AI: Content script loaded at', new Date().toISOString());
 
   // Notify background that content script is ready
   chrome.runtime.sendMessage({ type: 'CONTENT_SCRIPT_READY' });

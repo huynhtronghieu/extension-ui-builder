@@ -43,21 +43,7 @@ async function findAndConnectGeminiTab() {
     const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
     
     for (const tab of tabs) {
-      // Always try to inject/re-inject content script to ensure it's fresh
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['content.js']
-        });
-        console.log('Injected content script to tab:', tab.id);
-      } catch (injectError) {
-        console.log('Script injection skipped (may already exist):', injectError.message);
-      }
-      
-      // Wait for script to initialize
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Now try to ping
+      // Content script is auto-injected by manifest.json, just ping directly
       try {
         const response = await sendMessageWithTimeout(tab.id, { type: 'PING' }, 3000);
         if (response && response.pong) {
@@ -367,4 +353,4 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-console.log('UI Builder từ Gemini AI background script loaded');
+console.log('UI Builder với Gemini AI background script loaded');
