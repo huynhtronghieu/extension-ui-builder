@@ -300,13 +300,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         text: message.text || '',
         requestId: message.requestId
       });
-      // Persist updated conversation IDs to chrome.storage.local
-      if (message.suggestConversationId || message.suggestResponseId || message.suggestChoiceId) {
-        if (message.suggestConversationId) suggestConversation.conversationId = message.suggestConversationId;
-        if (message.suggestResponseId) suggestConversation.responseId = message.suggestResponseId;
-        if (message.suggestChoiceId) suggestConversation.choiceId = message.suggestChoiceId;
-        chrome.storage.local.set({ suggestConversation });
-        console.log('Saved suggestConversation to storage');
+      if (message.success) {
+        // Persist updated conversation IDs on success
+        if (message.suggestConversationId || message.suggestResponseId || message.suggestChoiceId) {
+          if (message.suggestConversationId) suggestConversation.conversationId = message.suggestConversationId;
+          if (message.suggestResponseId) suggestConversation.responseId = message.suggestResponseId;
+          if (message.suggestChoiceId) suggestConversation.choiceId = message.suggestChoiceId;
+          chrome.storage.local.set({ suggestConversation });
+          console.log('Saved suggestConversation to storage');
+        }
+      } else if (suggestConversation.conversationId) {
+        // Conversation may have been deleted — clear stale IDs so next request starts fresh
+        suggestConversation = { conversationId: '', responseId: '', choiceId: '' };
+        chrome.storage.local.remove('suggestConversation');
+        console.log('Cleared stale suggestConversation after failure');
       }
       break;
   }

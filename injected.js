@@ -949,6 +949,8 @@ Start your response with exactly: <!DOCTYPE html>`;
       });
 
       if (!response.ok) {
+        // Conversation may have been deleted — reset local context so next call starts fresh
+        suggestConversation = { conversationId: '', responseId: '', choiceId: '' };
         window.postMessage({
           type: 'GEMINI_SUGGEST_RESULT',
           success: false,
@@ -980,6 +982,8 @@ Start your response with exactly: <!DOCTYPE html>`;
 
     } catch (e) {
       console.error('suggestCompletion error:', e);
+      // Reset context in case conversation is invalid
+      suggestConversation = { conversationId: '', responseId: '', choiceId: '' };
       window.postMessage({
         type: 'GEMINI_SUGGEST_RESULT',
         success: false,
