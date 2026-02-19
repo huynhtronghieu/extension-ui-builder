@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.parent.postMessage({ type: 'LINK_CLICKED', href: href, text: (anchor.innerText || '').trim() }, '*');
     }
   }, true);
-  window.addEventListener('message', function(e) {
+  window.onmessage = function(e) {
     var d = e.data;
     if (!d || !d.type) return;
     switch(d.type) {
@@ -440,7 +440,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         var bc = html.lastIndexOf('</body>');
         if (bc !== -1) { html = html.substring(0, bc) + br + html.substring(bc); }
         else { var hc = html.lastIndexOf('</html>'); if (hc !== -1) { html = html.substring(0, hc) + br + html.substring(hc); } else { html += br; } }
-        document.open(); document.write(html); document.close();
+        var blob = new Blob([html], {type: 'text/html;charset=utf-8'});
+        var blobUrl = URL.createObjectURL(blob);
+        window.location.replace(blobUrl);
         break;
       case 'ENABLE_INSPECT': enableInspect(); break;
       case 'DISABLE_INSPECT': disableInspect(); break;
@@ -477,7 +479,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         break;
     }
-  });
+  };
   injectInspectStyles();
   window.parent.postMessage({ type: 'SANDBOX_READY' }, '*');
 })();</script>`;
@@ -1623,13 +1625,20 @@ NEW INNER HTML:`;
   }
 
   // Fix backslash-escaped ampersands in URLs (e.g. \&amp; or \& in href/src attributes)
+  // Only processes HTML attributes OUTSIDE <script> blocks to avoid corrupting JavaScript
   function fixBackslashAmpersands(html) {
     if (!html) return html;
-    // Fix \&amp; → & and \& → & inside attribute values
-    return html.replace(/((?:href|src|action|poster|data-src)\s*=\s*["'])([^"']*)(["'])/gi, (match, prefix, url, quote) => {
-      const fixed = url.replace(/\\&amp;/g, '&').replace(/\\&/g, '&');
-      return prefix + fixed + quote;
+    // Preserve script blocks, only fix attributes in non-script HTML
+    const scripts = [];
+    const withoutScripts = html.replace(/<script(?:\s[^>]*)?>[\s\S]*?<\/script>/gi, (m) => {
+      scripts.push(m);
+      return `<!--__SCRIPT_${scripts.length - 1}__-->`;
     });
+    const fixed = withoutScripts.replace(/((?:href|src|action|poster|data-src)\s*=\s*["'])([^"']*)(["'])/gi, (match, prefix, url, quote) => {
+      const fixedUrl = url.replace(/\\&amp;/g, '&').replace(/\\&/g, '&');
+      return prefix + fixedUrl + quote;
+    });
+    return fixed.replace(/<!--__SCRIPT_(\d+)__-->/g, (m, i) => scripts[parseInt(i)]);
   }
 
   // Fix backslash-escaped CSS comment markers in <style> blocks
@@ -2151,7 +2160,8 @@ NEW INNER HTML:`;
       slugToPath[entry.slug] = cleanPath;
     });
 
-    return html.replace(
+    // Pass 1: Rewrite links with real hrefs (e.g. href="san-pham.html")
+    html = html.replace(
       /href=["']([^"'#][^"']*)["']/gi,
       (match, href) => {
         // Skip external links
@@ -2180,6 +2190,33 @@ NEW INNER HTML:`;
         return match;
       }
     );
+
+    // Pass 2: Rewrite placeholder links (href="#", href="", href="javascript:void(0)")
+    // AI often generates nav links as href="#" — match by anchor text instead
+    html = html.replace(
+      /<a([^>]*?)href=["'](?:#|javascript:void\(0\))["']([^>]*)>([\s\S]*?)<\/a>/gi,
+      (match, before, after, innerContent) => {
+        // Extract plain text from anchor (strip nested HTML tags)
+        const text = innerContent.replace(/<[^>]*>/g, '').trim();
+        if (!text) return match;
+
+        // Try matching text against page names
+        const normalizedText = text.normalize('NFC').toLowerCase();
+        if (nameToPath[normalizedText]) {
+          return `<a${before}href="${nameToPath[normalizedText]}"${after}>${innerContent}</a>`;
+        }
+
+        // Try matching text as slug
+        const textSlug = pageNameToSlug(text);
+        if (textSlug && slugToPath[textSlug]) {
+          return `<a${before}href="${slugToPath[textSlug]}"${after}>${innerContent}</a>`;
+        }
+
+        return match;
+      }
+    );
+
+    return html;
   }
 
   // Compute SHA1 hash using Web Crypto API
