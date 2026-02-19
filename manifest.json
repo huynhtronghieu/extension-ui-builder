@@ -10,7 +10,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://gemini.google.com/*"
+    "https://gemini.google.com/*",
+    "https://api.netlify.com/*"
   ],
   "icons": {
     "16": "icons/icon16.png",

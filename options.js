@@ -31,7 +31,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Ghost text elements
     promptGhost: document.getElementById('promptGhost'),
     ghostTyped: document.getElementById('ghostTyped'),
-    ghostSuggestion: document.getElementById('ghostSuggestion')
+    ghostSuggestion: document.getElementById('ghostSuggestion'),
+    // Netlify deploy elements
+    deployBtn: document.getElementById('deployBtn'),
+    netlifyPanel: document.getElementById('netlifyPanel'),
+    netlifyTokenInput: document.getElementById('netlifyTokenInput'),
+    netlifyConnectBtn: document.getElementById('netlifyConnectBtn'),
+    netlifyOpenBtn: document.getElementById('netlifyOpenBtn'),
+    netlifyPanelClose: document.getElementById('netlifyPanelClose'),
+    deployedUrlBar: document.getElementById('deployedUrlBar'),
+    deployedUrl: document.getElementById('deployedUrl'),
+    copyDeployedUrl: document.getElementById('copyDeployedUrl'),
+    disconnectNetlify: document.getElementById('disconnectNetlify')
   };
 
   let currentHTML = '';
@@ -59,6 +70,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   let pendingRequests = {};
   let requestCounter = 0;
   let pendingAfterReady = [];
+
+  // Netlify deploy state
+  let netlifyToken = null;
 
   // Debounce utility
   function debounce(fn, delay) {
@@ -474,6 +488,47 @@ document.addEventListener('DOMContentLoaded', async () => {
   elements.inspectBtn.addEventListener('click', toggleInspectMode);
   elements.clearSelection.addEventListener('click', clearElementSelection);
 
+  // Netlify deploy event listeners
+  elements.deployBtn.addEventListener('click', handleDeploy);
+  elements.netlifyOpenBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://app.netlify.com/user/applications#personal-access-tokens' });
+  });
+  elements.netlifyConnectBtn.addEventListener('click', async () => {
+    const token = elements.netlifyTokenInput.value.trim();
+    if (!token) {
+      showStatus('Vui lòng nhập token', 'error');
+      return;
+    }
+    await saveNetlifyToken(token);
+    hideNetlifyPanel();
+    showStatus('Đã kết nối Netlify', 'success');
+    // Auto-deploy after connecting
+    handleDeploy();
+  });
+  elements.netlifyPanelClose.addEventListener('click', hideNetlifyPanel);
+  elements.netlifyTokenInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      elements.netlifyConnectBtn.click();
+    }
+  });
+  elements.copyDeployedUrl.addEventListener('click', async () => {
+    const url = elements.deployedUrl.href;
+    if (url && url !== '#') {
+      try {
+        await navigator.clipboard.writeText(url);
+        showStatus('Đã copy URL', 'success');
+      } catch (e) {
+        showStatus('Không thể copy URL', 'error');
+      }
+    }
+  });
+  elements.disconnectNetlify.addEventListener('click', async () => {
+    if (!confirm('Ngắt kết nối Netlify? Token sẽ bị xóa.')) return;
+    await clearNetlifyToken();
+    hideDeployedUrl();
+    showStatus('Đã ngắt kết nối Netlify', 'info');
+  });
+
   // Ghost text (inline suggestion) event listeners
   elements.promptInput.addEventListener('input', updateGhostText);
   elements.promptInput.addEventListener('scroll', () => {
@@ -573,6 +628,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       // Check Gemini connection status
       await checkGeminiStatus();
+
+      // Load Netlify token
+      await loadNetlifyToken();
 
       // Load pages
       await loadPages();
@@ -702,6 +760,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       elements.promptInput.value = '';
       clearGhostText();
       cancelAISuggestion();
+      hideDeployedUrl();
 
       showStatus(`Đã tạo Page ${pageNumber}`, 'success');
     } catch (error) {
@@ -751,6 +810,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Cancel any pending AI suggestions and clear cache for new page context
       cancelAISuggestion();
       aiSuggestionCache.clear();
+
+      // Update deployed URL bar for this page
+      if (page && page.netlifySiteUrl) {
+        showDeployedUrl(page.netlifySiteUrl);
+      } else {
+        hideDeployedUrl();
+      }
       
     } catch (error) {
       console.error('Failed to select page:', error);
@@ -1707,5 +1773,229 @@ NEW INNER HTML:`;
     elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
     
     showStatus('Đã bỏ chọn phần tử', 'info');
+  }
+
+  // =====================
+  // NETLIFY DEPLOY
+  // =====================
+
+  const NETLIFY_API = 'https://api.netlify.com/api/v1';
+
+  // Load Netlify token from chrome.storage.local
+  async function loadNetlifyToken() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get('netlifyToken', (result) => {
+        netlifyToken = result.netlifyToken || null;
+        resolve();
+      });
+    });
+  }
+
+  // Save Netlify token to chrome.storage.local
+  async function saveNetlifyToken(token) {
+    netlifyToken = token;
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ netlifyToken: token }, resolve);
+    });
+  }
+
+  // Clear Netlify token
+  async function clearNetlifyToken() {
+    netlifyToken = null;
+    return new Promise((resolve) => {
+      chrome.storage.local.remove('netlifyToken', resolve);
+    });
+  }
+
+  // Compute SHA1 hash using Web Crypto API
+  async function sha1(content) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(content);
+    const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  // Create a new Netlify site
+  async function netlifyCreateSite(token) {
+    const response = await fetch(`${NETLIFY_API}/sites`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    });
+
+    if (response.status === 401) {
+      throw new Error('TOKEN_INVALID');
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Netlify API error: ${response.status} - ${text}`);
+    }
+
+    return await response.json();
+  }
+
+  // Deploy HTML to a Netlify site using file digest method
+  async function netlifyDeploy(token, siteId, html) {
+    // Step 1: Compute SHA1 of the HTML content
+    const hash = await sha1(html);
+
+    // Step 2: Create deploy with file digest
+    const deployResponse = await fetch(`${NETLIFY_API}/sites/${siteId}/deploys`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        files: { '/index.html': hash }
+      })
+    });
+
+    if (deployResponse.status === 401) {
+      throw new Error('TOKEN_INVALID');
+    }
+
+    if (deployResponse.status === 404) {
+      throw new Error('SITE_NOT_FOUND');
+    }
+
+    if (!deployResponse.ok) {
+      const text = await deployResponse.text();
+      throw new Error(`Deploy error: ${deployResponse.status} - ${text}`);
+    }
+
+    const deploy = await deployResponse.json();
+
+    // Step 3: Upload the file if required
+    if (deploy.required && deploy.required.includes(hash)) {
+      const uploadResponse = await fetch(`${NETLIFY_API}/deploys/${deploy.id}/files/index.html`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/octet-stream'
+        },
+        body: html
+      });
+
+      if (!uploadResponse.ok) {
+        const text = await uploadResponse.text();
+        throw new Error(`Upload error: ${uploadResponse.status} - ${text}`);
+      }
+    }
+
+    return deploy;
+  }
+
+  // Main deploy handler
+  async function handleDeploy() {
+    if (!currentHTML) {
+      showStatus('Không có HTML để deploy', 'error');
+      return;
+    }
+
+    if (!currentPageId) {
+      showStatus('Vui lòng chọn page trước', 'error');
+      return;
+    }
+
+    if (!netlifyToken) {
+      showNetlifyPanel();
+      return;
+    }
+
+    // Start deploying
+    elements.deployBtn.classList.add('deploying');
+    showStatus('Đang deploy lên Netlify...', 'info');
+
+    try {
+      const page = await htmlDB.getPage(currentPageId);
+      let siteId = page?.netlifySiteId;
+      let siteUrl = page?.netlifySiteUrl;
+
+      // Create site if this page doesn't have one yet
+      if (!siteId) {
+        showStatus('Đang tạo site mới trên Netlify...', 'info');
+        const site = await netlifyCreateSite(netlifyToken);
+        siteId = site.id;
+        siteUrl = site.ssl_url || site.url;
+        await htmlDB.updatePage(currentPageId, {
+          netlifySiteId: siteId,
+          netlifySiteUrl: siteUrl
+        });
+      }
+
+      // Deploy the HTML
+      await netlifyDeploy(netlifyToken, siteId, currentHTML);
+
+      elements.deployBtn.classList.remove('deploying');
+      elements.deployBtn.classList.add('deployed');
+      showDeployedUrl(siteUrl);
+      showStatus('Deploy thành công!', 'success');
+
+    } catch (error) {
+      elements.deployBtn.classList.remove('deploying');
+      console.error('Deploy error:', error);
+
+      if (error.message === 'TOKEN_INVALID') {
+        await clearNetlifyToken();
+        showNetlifyPanel();
+        showStatus('Token không hợp lệ hoặc đã hết hạn. Vui lòng kết nối lại.', 'error');
+        return;
+      }
+
+      if (error.message === 'SITE_NOT_FOUND') {
+        // Site was deleted on Netlify, create a new one and retry
+        showStatus('Site đã bị xóa, đang tạo lại...', 'info');
+        try {
+          const site = await netlifyCreateSite(netlifyToken);
+          await htmlDB.updatePage(currentPageId, {
+            netlifySiteId: site.id,
+            netlifySiteUrl: site.ssl_url || site.url
+          });
+          await netlifyDeploy(netlifyToken, site.id, currentHTML);
+          elements.deployBtn.classList.add('deployed');
+          showDeployedUrl(site.ssl_url || site.url);
+          showStatus('Deploy thành công!', 'success');
+        } catch (retryError) {
+          console.error('Retry deploy error:', retryError);
+          showStatus('Không thể deploy: ' + retryError.message, 'error');
+        }
+        return;
+      }
+
+      showStatus('Lỗi deploy: ' + error.message, 'error');
+    }
+  }
+
+  // Show/hide Netlify connect panel
+  function showNetlifyPanel() {
+    elements.netlifyPanel.classList.remove('hidden');
+    elements.netlifyTokenInput.value = '';
+    elements.netlifyTokenInput.focus();
+  }
+
+  function hideNetlifyPanel() {
+    elements.netlifyPanel.classList.add('hidden');
+  }
+
+  // Show/hide deployed URL bar
+  function showDeployedUrl(url) {
+    if (!url) return;
+    elements.deployedUrlBar.classList.remove('hidden');
+    elements.deployedUrl.href = url;
+    elements.deployedUrl.textContent = url;
+    elements.deployBtn.classList.add('deployed');
+  }
+
+  function hideDeployedUrl() {
+    elements.deployedUrlBar.classList.add('hidden');
+    elements.deployedUrl.href = '#';
+    elements.deployedUrl.textContent = '';
+    elements.deployBtn.classList.remove('deployed');
   }
 });

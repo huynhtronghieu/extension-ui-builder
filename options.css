@@ -126,7 +126,6 @@ body {
 .preview-panel {
   flex: 1.3;
   min-height: 0; /* Allows shrinking */
-  overflow: hidden;
 }
 
 .control-panel {
@@ -145,6 +144,8 @@ body {
   padding: 12px 16px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
+  position: relative;
+  z-index: 5;
 }
 
 .panel-header h2 {
@@ -233,6 +234,13 @@ body {
   top: calc(100% + 2px);
   border-top-color: transparent;
   border-bottom-color: var(--border-color);
+}
+
+/* Last button tooltip: align right to prevent overflow */
+.panel-actions .btn-icon:last-child::after {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 /* Tooltip position adjustment for buttons near edges */
@@ -1308,4 +1316,234 @@ body.generating #generateBtn {
 
 #clearHistory {
   display: none;
+}
+
+/* ========================= */
+/* Netlify Deploy Styles     */
+/* ========================= */
+
+/* Deploy Button */
+.btn-header-deploy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: var(--accent-gradient);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-header-deploy svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-header-deploy:hover:not(.deploying) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 255, 136, 0.35);
+}
+
+.btn-deploy {
+  transition: all 0.3s ease;
+}
+
+.btn-deploy.deployed {
+  box-shadow: 0 0 16px rgba(0, 255, 136, 0.5);
+}
+
+.btn-deploy.deploying {
+  pointer-events: none;
+  animation: deployPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes deployPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Netlify Connect Panel */
+.netlify-panel {
+  position: relative;
+  display: flex;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(0, 180, 216, 0.08) 0%, rgba(0, 255, 136, 0.08) 100%);
+  border-bottom: 1px solid var(--accent-secondary);
+  animation: slideDown 0.3s ease;
+}
+
+.netlify-panel > .btn-clear-selection {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+}
+
+.netlify-panel.hidden {
+  display: none;
+}
+
+.netlify-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.netlify-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-secondary);
+}
+
+.netlify-label svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.netlify-token-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.netlify-token-row input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.netlify-token-row input:focus {
+  border-color: var(--accent-secondary);
+}
+
+.netlify-token-row input::placeholder {
+  color: var(--text-secondary);
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.netlify-help {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Highlighted "Open Netlify" button for first-time users */
+.btn-netlify-open {
+  background: var(--accent-gradient) !important;
+  color: var(--bg-primary) !important;
+  border: none !important;
+  font-weight: 600 !important;
+  padding: 7px 14px !important;
+  font-size: 12px !important;
+  animation: netlifyBtnPulse 2s ease-in-out infinite;
+}
+
+.btn-netlify-open:hover {
+  transform: translateY(-1px);
+  color: var(--bg-primary) !important;
+}
+
+@keyframes netlifyBtnPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(0, 255, 136, 0.3); }
+  50% { box-shadow: 0 0 18px rgba(0, 255, 136, 0.6); }
+}
+
+/* Deployed URL Bar */
+.deployed-url-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: rgba(0, 255, 136, 0.06);
+  border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+  animation: slideDown 0.3s ease;
+}
+
+.deployed-url-bar.hidden {
+  display: none;
+}
+
+.deployed-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.deployed-label svg {
+  width: 12px;
+  height: 12px;
+}
+
+.deployed-link {
+  flex: 1;
+  font-size: 11px;
+  color: var(--accent-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.2s;
+}
+
+.deployed-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.btn-copy-url {
+  padding: 4px !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.btn-copy-url svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.btn-copy-url:hover {
+  color: var(--accent-primary) !important;
+  background: transparent !important;
+  border: none !important;
+  transform: none !important;
+}
+
+.btn-disconnect {
+  padding: 4px !important;
+  border: none !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+}
+
+.btn-disconnect svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.btn-disconnect:hover {
+  color: var(--accent-danger) !important;
+  background: transparent !important;
+  border: none !important;
+  transform: none !important;
 }

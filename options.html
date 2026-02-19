@@ -16,6 +16,10 @@
         </span>
         <h1>UI Builder với Gemini AI</h1>
       </div>
+      <button id="deployBtn" class="btn-header-deploy btn-deploy" title="Deploy lên Netlify">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/></svg>
+        <span>Deploy</span>
+      </button>
     </header>
 
     <!-- Main Content -->
@@ -44,6 +48,43 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
             </button>
           </div>
+        </div>
+        <!-- Netlify Connect Panel -->
+        <div id="netlifyPanel" class="netlify-panel hidden">
+          <div class="netlify-panel-content">
+            <span class="netlify-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+              Kết nối Netlify để deploy
+            </span>
+            <div class="netlify-help">
+              <button id="netlifyOpenBtn" class="btn-small btn-netlify-open">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Bước 1: Mở Netlify
+              </button>
+              <span>Tạo token tại mục Personal Access Tokens</span>
+            </div>
+            <div class="netlify-token-row">
+              <input type="password" id="netlifyTokenInput" placeholder="Bước 2: Paste token vào đây..." autocomplete="off" />
+              <button id="netlifyConnectBtn" class="btn-small">Kết nối</button>
+            </div>
+          </div>
+          <button id="netlifyPanelClose" class="btn-clear-selection" title="Đóng">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <!-- Deployed URL Bar -->
+        <div id="deployedUrlBar" class="deployed-url-bar hidden">
+          <span class="deployed-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+            Live
+          </span>
+          <a id="deployedUrl" href="#" target="_blank" class="deployed-link"></a>
+          <button id="copyDeployedUrl" class="btn-icon btn-copy-url" title="Copy URL">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+          <button id="disconnectNetlify" class="btn-icon btn-disconnect" title="Ngắt kết nối Netlify">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 11-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+          </button>
         </div>
         <!-- Selected Element Info -->
         <div id="selectedElementInfo" class="selected-element-info hidden">
