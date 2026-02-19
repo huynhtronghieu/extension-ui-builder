@@ -3,7 +3,11 @@
 
 (function() {
   'use strict';
-  
+
+  // State
+  let isGenerating = false;
+  let injectedScriptReady = false;
+
   // Check if already initialized
   if (window.__geminiHtmlBuilderInitialized) {
     console.log('UI Builder từ Gemini AI: Re-injecting script...');
@@ -12,12 +16,8 @@
     return;
   }
   window.__geminiHtmlBuilderInitialized = true;
-  
-  console.log('UI Builder từ Gemini AI: Content script loaded at', new Date().toISOString());
 
-  // State
-  let isGenerating = false;
-  let injectedScriptReady = false;
+  console.log('UI Builder từ Gemini AI: Content script loaded at', new Date().toISOString());
 
   // Notify background that content script is ready
   chrome.runtime.sendMessage({ type: 'CONTENT_SCRIPT_READY' });
