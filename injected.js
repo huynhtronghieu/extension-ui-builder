@@ -109,11 +109,12 @@
     
     // First-time generation: use a direct prompt that forces immediate HTML output
     return `Generate HTML code only. No explanation, no markdown, no thinking.
-    
+
 Requirements: ${userPrompt}
 
 Technical specs:
-- Single HTML file with inline CSS in <style> tag
+- Single HTML file with inline CSS in <style> tag and inline JavaScript in <script> tag
+- Include JavaScript for all interactive features (dropdowns, modals, tabs, sliders, toggles, etc.)
 - Vietnamese content
 - Responsive design
 - Use emojis and CSS gradients instead of images

@@ -556,26 +556,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Delete a page
   async function deletePage(pageId) {
-    const pages = await htmlDB.getAllPages();
-    if (pages.length <= 1) {
-      showStatus('Cần ít nhất 1 page', 'error');
-      return;
-    }
-    
     if (!confirm('Bạn có chắc muốn xóa page này và toàn bộ lịch sử?')) return;
-    
+
     try {
       await htmlDB.deletePage(pageId);
-      
-      // If deleted current page, select another
-      if (currentPageId === pageId) {
-        const remainingPages = await htmlDB.getAllPages();
-        if (remainingPages.length > 0) {
-          await selectPage(remainingPages[0].id);
-        }
+
+      const remainingPages = await htmlDB.getAllPages();
+
+      if (remainingPages.length === 0) {
+        // Last page deleted — create a fresh one automatically
+        currentPageId = null;
+        currentHTML = '';
+        isReverted = false;
+        revertedFromPrompt = '';
+        await createNewPage();
+      } else if (currentPageId === pageId) {
+        await selectPage(remainingPages[0].id);
+        await loadPages();
+      } else {
+        await loadPages();
       }
-      
-      await loadPages();
+
       showStatus('Đã xóa page', 'info');
     } catch (error) {
       console.error('Failed to delete page:', error);
@@ -854,12 +855,13 @@ MODIFICATION REQUEST: ${prompt}
 
 CRITICAL RULES:
 1. Copy the ENTIRE existing <style> block as-is. Do NOT remove, simplify, or rewrite any CSS property (padding, margin, gap, font-size, colors, gradients, shadows, border-radius, etc.)
-2. Only ADD or MODIFY the specific CSS/HTML related to the request
-3. Keep ALL existing HTML structure, class names, ids, and attributes unchanged unless the request specifically asks to change them
-4. Keep ALL existing content (text, emojis, links) unless the request specifically asks to change them
-5. Do NOT reorganize, reformat, or "clean up" any code
-6. Return the COMPLETE HTML file starting with <!DOCTYPE html>
-7. The output must be ONLY HTML code, no explanation, no markdown`;
+2. Copy the ENTIRE existing <script> block as-is. Add new JavaScript if the modification requires interactive functionality
+3. Only ADD or MODIFY the specific CSS/HTML/JS related to the request
+4. Keep ALL existing HTML structure, class names, ids, and attributes unchanged unless the request specifically asks to change them
+5. Keep ALL existing content (text, emojis, links) unless the request specifically asks to change them
+6. Do NOT reorganize, reformat, or "clean up" any code
+7. Return the COMPLETE HTML file starting with <!DOCTYPE html>
+8. The output must be ONLY HTML code, no explanation, no markdown`;
       
       isModification = true;
       console.log('Sending modification prompt with HTML context, length:', currentHTML.length);
