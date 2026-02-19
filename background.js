@@ -5,6 +5,21 @@
 let geminiTabId = null;
 let optionsTabId = null;
 
+// Persistent conversation context for AI suggestions
+let suggestConversation = {
+  conversationId: '',
+  responseId: '',
+  choiceId: ''
+};
+
+// Load suggest conversation from storage on startup
+chrome.storage.local.get('suggestConversation', (result) => {
+  if (result.suggestConversation) {
+    suggestConversation = result.suggestConversation;
+    console.log('Loaded suggestConversation from storage:', !!suggestConversation.conversationId);
+  }
+});
+
 // When extension icon is clicked, open options page
 chrome.action.onClicked.addListener(async (tab) => {
   // Check if options page is already open
@@ -268,6 +283,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'SUGGEST_COMPLETION':
       // Forward AI suggestion request to content script (fail silently)
+      // Attach persisted conversation IDs so injected.js can continue the conversation
       (async () => {
         if (!geminiTabId) {
           sendResponse({ success: false });
@@ -277,7 +293,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await sendMessageWithTimeout(geminiTabId, {
             type: 'SUGGEST_REQUEST',
             text: message.text,
-            requestId: message.requestId
+            requestId: message.requestId,
+            conversationId: suggestConversation.conversationId,
+            responseId: suggestConversation.responseId,
+            choiceId: suggestConversation.choiceId
           }, 8000);
           sendResponse({ success: true });
         } catch (e) {
@@ -295,6 +314,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         text: message.text || '',
         requestId: message.requestId
       });
+      // Persist updated conversation IDs to chrome.storage.local
+      if (message.suggestConversationId || message.suggestResponseId || message.suggestChoiceId) {
+        if (message.suggestConversationId) suggestConversation.conversationId = message.suggestConversationId;
+        if (message.suggestResponseId) suggestConversation.responseId = message.suggestResponseId;
+        if (message.suggestChoiceId) suggestConversation.choiceId = message.suggestChoiceId;
+        chrome.storage.local.set({ suggestConversation });
+        console.log('Saved suggestConversation to storage');
+      }
       break;
   }
 

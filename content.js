@@ -70,7 +70,10 @@
       window.postMessage({
         type: 'GEMINI_SUGGEST_REQUEST',
         text: message.text,
-        requestId: message.requestId
+        requestId: message.requestId,
+        conversationId: message.conversationId || '',
+        responseId: message.responseId || '',
+        choiceId: message.choiceId || ''
       }, '*');
       sendResponse({ success: true });
       return true;
@@ -166,7 +169,10 @@
         success: data.success,
         completion: data.completion || '',
         text: data.text || '',
-        requestId: data.requestId
+        requestId: data.requestId,
+        suggestConversationId: data.conversationId || '',
+        suggestResponseId: data.responseId || '',
+        suggestChoiceId: data.choiceId || ''
       });
     }
   });

@@ -744,13 +744,20 @@ Start your response with exactly: <!DOCTYPE html>`;
   // AI SUGGESTION (Autocomplete)
   // =====================
 
-  // Build a stateless request body for suggestions (no conversation context)
+  // Persistent conversation context for suggestions (reused across calls)
+  let suggestConversation = {
+    conversationId: '',
+    responseId: '',
+    choiceId: ''
+  };
+
+  // Build request body for suggestions (reuses conversation context)
   function buildSuggestionBody(prompt) {
     const uuid = generateUUID();
     const requestData = [
       [prompt, 0, null, null, null, null, 0],
       ["vi"],
-      ["", "", "", null, null, null, null, null, null, ""],
+      [suggestConversation.conversationId, suggestConversation.responseId, suggestConversation.choiceId, null, null, null, null, null, null, ""],
       "",
       uuid,
       null,
@@ -823,11 +830,12 @@ Start your response with exactly: <!DOCTYPE html>`;
     return `f.req=${encodeURIComponent(outerJson)}&at=${encodeURIComponent(API_CONFIG.atValue)}&`;
   }
 
-  // Extract plain text from a suggestion response (simplified parser)
+  // Extract plain text and conversation IDs from a suggestion response
   function extractSuggestionText(responseText) {
     try {
       const lines = responseText.split('\n');
       let bestText = '';
+      let convId = '', respId = '', chId = '';
 
       for (const line of lines) {
         const trimmed = line.trim();
@@ -842,6 +850,16 @@ Start your response with exactly: <!DOCTYPE html>`;
             if (!Array.isArray(item) || item[0] !== 'wrb.fr' || !item[2]) continue;
             try {
               const innerData = JSON.parse(item[2]);
+
+              // Extract conversation IDs for reuse
+              if (innerData && innerData[1]) {
+                if (innerData[1][0]) convId = innerData[1][0];
+                if (innerData[1][1]) respId = innerData[1][1];
+              }
+              if (innerData && innerData[4] && innerData[4][0] && innerData[4][0][0]) {
+                chId = innerData[4][0][0];
+              }
+
               if (innerData && innerData[4] && innerData[4][0] && innerData[4][0][1]) {
                 const responseArr = innerData[4][0][1];
                 let text = '';
@@ -859,7 +877,7 @@ Start your response with exactly: <!DOCTYPE html>`;
         } catch (e) {}
       }
 
-      if (!bestText) return null;
+      if (!bestText) return { text: null, conversationId: convId, responseId: respId, choiceId: chId };
 
       // Clean up the suggestion text
       let cleaned = bestText.trim();
@@ -869,19 +887,21 @@ Start your response with exactly: <!DOCTYPE html>`;
       // Remove surrounding quotes
       cleaned = cleaned.replace(/^["'`]+|["'`]+$/g, '');
       // Check for NONE/empty responses
-      if (!cleaned || cleaned === 'NONE' || cleaned.length < 3) return null;
+      if (!cleaned || cleaned === 'NONE' || cleaned.length < 3) {
+        return { text: null, conversationId: convId, responseId: respId, choiceId: chId };
+      }
       // Truncate if too long
       if (cleaned.length > 100) cleaned = cleaned.substring(0, 100);
 
-      return cleaned;
+      return { text: cleaned, conversationId: convId, responseId: respId, choiceId: chId };
     } catch (e) {
       console.error('extractSuggestionText error:', e);
-      return null;
+      return { text: null, conversationId: '', responseId: '', choiceId: '' };
     }
   }
 
   // Suggest completion for partial prompt text
-  async function suggestCompletion(text, requestId) {
+  async function suggestCompletion(text, requestId, persistedIds = {}) {
     try {
       if (!API_CONFIG.atValue) {
         extractTokens();
@@ -894,6 +914,14 @@ Start your response with exactly: <!DOCTYPE html>`;
           }, '*');
           return;
         }
+      }
+
+      // Use persisted IDs from chrome.storage.local (via background.js) if local state is empty
+      if (!suggestConversation.conversationId && persistedIds.conversationId) {
+        suggestConversation.conversationId = persistedIds.conversationId;
+        suggestConversation.responseId = persistedIds.responseId || '';
+        suggestConversation.choiceId = persistedIds.choiceId || '';
+        console.log('Restored suggestConversation from persisted IDs');
       }
 
       const prompt = `Complete this UI generation prompt in Vietnamese. Return ONLY the completion text (the part after what they typed). Keep it concise (<80 chars). If you cannot complete, return: NONE\n\nUser's partial input: "${text}"`;
@@ -922,14 +950,23 @@ Start your response with exactly: <!DOCTYPE html>`;
       }
 
       const responseText = await response.text();
-      const completion = extractSuggestionText(responseText);
+      const result = extractSuggestionText(responseText);
+
+      // Update suggestion conversation context for reuse
+      if (result.conversationId) suggestConversation.conversationId = result.conversationId;
+      if (result.responseId) suggestConversation.responseId = result.responseId;
+      if (result.choiceId) suggestConversation.choiceId = result.choiceId;
 
       window.postMessage({
         type: 'GEMINI_SUGGEST_RESULT',
-        success: !!completion,
-        completion: completion || '',
+        success: !!result.text,
+        completion: result.text || '',
         text: text,
-        requestId: requestId
+        requestId: requestId,
+        // Return updated conversation IDs for persistence in chrome.storage.local
+        conversationId: suggestConversation.conversationId,
+        responseId: suggestConversation.responseId,
+        choiceId: suggestConversation.choiceId
       }, '*');
 
     } catch (e) {
@@ -965,7 +1002,13 @@ Start your response with exactly: <!DOCTYPE html>`;
     }
 
     if (event.data.type === 'GEMINI_SUGGEST_REQUEST') {
-      suggestCompletion(event.data.text, event.data.requestId);
+      // Accept persisted conversation IDs from background.js via content.js
+      const ids = {
+        conversationId: event.data.conversationId || '',
+        responseId: event.data.responseId || '',
+        choiceId: event.data.choiceId || ''
+      };
+      suggestCompletion(event.data.text, event.data.requestId, ids);
     }
   });
 
