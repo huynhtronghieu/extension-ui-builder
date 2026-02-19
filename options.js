@@ -42,7 +42,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     deployedUrlBar: document.getElementById('deployedUrlBar'),
     deployedUrl: document.getElementById('deployedUrl'),
     copyDeployedUrl: document.getElementById('copyDeployedUrl'),
-    disconnectNetlify: document.getElementById('disconnectNetlify')
+    disconnectNetlify: document.getElementById('disconnectNetlify'),
+    // Link navigation modal
+    linkModal: document.getElementById('linkModal'),
+    linkModalPageName: document.getElementById('linkModalPageName'),
+    linkModalCancel: document.getElementById('linkModalCancel'),
+    linkModalConfirm: document.getElementById('linkModalConfirm'),
+    // Link modal prompt elements
+    linkModalPromptInput: document.getElementById('linkModalPromptInput'),
+    linkModalPromptGhost: document.getElementById('linkModalPromptGhost'),
+    linkModalGhostTyped: document.getElementById('linkModalGhostTyped'),
+    linkModalGhostSuggestion: document.getElementById('linkModalGhostSuggestion')
   };
 
   let currentHTML = '';
@@ -73,6 +83,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Netlify deploy state
   let netlifyToken = null;
+
+  // Link navigation modal state
+  let pendingLinkPageName = null;
+  let designContextHTML = '';
+  let isLinkModalGhostActive = false;
+  let modalSuggestionSource = null;
 
   // Debounce utility
   function debounce(fn, delay) {
@@ -169,8 +185,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     aiSuggestionRequestId++;
     if (aiSuggestionPending) {
       aiSuggestionPending = false;
-      if (currentSuggestionSource === 'ai-loading') {
-        clearGhostText();
+      if (isLinkModalGhostActive) {
+        if (modalSuggestionSource === 'ai-loading') {
+          clearModalGhostText();
+        }
+      } else {
+        if (currentSuggestionSource === 'ai-loading') {
+          clearGhostText();
+        }
       }
     }
   }
@@ -182,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     if (isGenerating || !isConnected) return;
+    isLinkModalGhostActive = false;
     debouncedAISuggestion(text.trim());
   }
 
@@ -189,15 +212,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   function requestAISuggestion(text) {
     const cacheKey = text.toLowerCase();
     if (aiSuggestionCache.has(cacheKey)) {
-      showAISuggestion(text, aiSuggestionCache.get(cacheKey));
+      if (isLinkModalGhostActive) {
+        showModalAISuggestion(text, aiSuggestionCache.get(cacheKey));
+      } else {
+        showAISuggestion(text, aiSuggestionCache.get(cacheKey));
+      }
       return;
     }
 
     aiSuggestionPending = true;
-    currentSuggestionSource = 'ai-loading';
-    elements.ghostTyped.textContent = text;
-    elements.ghostSuggestion.textContent = '...';
-    elements.ghostSuggestion.classList.add('ai-loading');
+
+    if (isLinkModalGhostActive) {
+      modalSuggestionSource = 'ai-loading';
+      elements.linkModalGhostTyped.textContent = text;
+      elements.linkModalGhostSuggestion.textContent = '...';
+      elements.linkModalGhostSuggestion.classList.add('ai-loading');
+    } else {
+      currentSuggestionSource = 'ai-loading';
+      elements.ghostTyped.textContent = text;
+      elements.ghostSuggestion.textContent = '...';
+      elements.ghostSuggestion.classList.add('ai-loading');
+    }
 
     const requestId = ++aiSuggestionRequestId;
     chrome.runtime.sendMessage({
@@ -235,6 +270,57 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const debouncedAISuggestion = debounce(requestAISuggestion, 800);
+
+  // Modal ghost text functions
+  function updateModalGhostText() {
+    const text = elements.linkModalPromptInput.value;
+    const suggestion = findSuggestion(text);
+    if (suggestion && !elements.linkModalPromptInput.disabled) {
+      elements.linkModalGhostTyped.textContent = text;
+      elements.linkModalGhostSuggestion.textContent = suggestion.substring(text.length);
+      elements.linkModalGhostSuggestion.classList.remove('ai-loading');
+      elements.linkModalPromptGhost.scrollTop = elements.linkModalPromptInput.scrollTop;
+      modalSuggestionSource = 'prefix';
+      cancelAISuggestion();
+    } else {
+      clearModalGhostText();
+      if (text && text.trim().length >= 5 && !isGenerating && isConnected) {
+        isLinkModalGhostActive = true;
+        debouncedAISuggestion(text.trim());
+      }
+    }
+  }
+
+  function clearModalGhostText() {
+    elements.linkModalGhostTyped.textContent = '';
+    elements.linkModalGhostSuggestion.textContent = '';
+    elements.linkModalGhostSuggestion.classList.remove('ai-loading');
+    modalSuggestionSource = null;
+  }
+
+  function showModalAISuggestion(inputText, completion) {
+    const currentText = elements.linkModalPromptInput.value.trim();
+    if (currentText !== inputText) return;
+    if (elements.linkModalPromptInput.disabled) return;
+
+    aiSuggestionPending = false;
+    elements.linkModalGhostSuggestion.classList.remove('ai-loading');
+
+    if (completion) {
+      let suffix = completion;
+      if (suffix.toLowerCase().startsWith(inputText.toLowerCase())) {
+        suffix = suffix.substring(inputText.length);
+      }
+      if (suffix && !suffix.startsWith(' ') && !inputText.endsWith(' ')) {
+        suffix = ' ' + suffix;
+      }
+      elements.linkModalGhostTyped.textContent = currentText;
+      elements.linkModalGhostSuggestion.textContent = suffix;
+      modalSuggestionSource = 'ai';
+    } else {
+      clearModalGhostText();
+    }
+  }
 
 
   // Bridge script - injected into sandbox iframe for cross-origin communication
@@ -329,6 +415,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     h = h.replace(/\\s+class="\\s*"/gi, '');
     return h;
   }
+  document.addEventListener('click', function(e) {
+    if (isInspectMode) return;
+    var anchor = e.target.closest ? e.target.closest('a') : null;
+    if (!anchor) return;
+    var href = anchor.getAttribute('href');
+    if (!href || (href.startsWith('#') && href.length > 1) || href.startsWith('javascript:')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+      window.parent.postMessage({ type: 'LINK_EXTERNAL', href: href }, '*');
+    } else {
+      window.parent.postMessage({ type: 'LINK_CLICKED', href: href }, '*');
+    }
+  }, true);
   window.addEventListener('message', function(e) {
     var d = e.data;
     if (!d || !d.type) return;
@@ -460,6 +560,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'INSPECT_ELEMENT_SELECTED':
         handleInspectElementSelected(data);
         break;
+      case 'LINK_CLICKED':
+        handlePreviewLinkClick(data.href);
+        break;
+      case 'LINK_EXTERNAL':
+        chrome.tabs.create({ url: data.href });
+        break;
       default:
         if (data.requestId && pendingRequests[data.requestId]) {
           pendingRequests[data.requestId](data);
@@ -527,6 +633,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     await clearNetlifyToken();
     hideDeployedUrl();
     showStatus('Đã ngắt kết nối Netlify', 'info');
+  });
+
+  // Link navigation modal event listeners
+  elements.linkModalCancel.addEventListener('click', hideLinkModal);
+  elements.linkModalConfirm.addEventListener('click', confirmCreateLinkedPage);
+  elements.linkModal.addEventListener('click', (e) => {
+    if (e.target === elements.linkModal) hideLinkModal();
+  });
+
+  // Link modal prompt ghost text event listeners
+  elements.linkModalPromptInput.addEventListener('input', updateModalGhostText);
+  elements.linkModalPromptInput.addEventListener('scroll', () => {
+    elements.linkModalPromptGhost.scrollTop = elements.linkModalPromptInput.scrollTop;
+  });
+  elements.linkModalPromptInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && elements.linkModalGhostSuggestion.textContent && modalSuggestionSource) {
+      e.preventDefault();
+      if (modalSuggestionSource === 'prefix') {
+        const suggestion = findSuggestion(elements.linkModalPromptInput.value);
+        if (suggestion) {
+          elements.linkModalPromptInput.value = suggestion;
+        }
+      } else if (modalSuggestionSource === 'ai') {
+        elements.linkModalPromptInput.value = elements.linkModalPromptInput.value + elements.linkModalGhostSuggestion.textContent;
+      }
+      clearModalGhostText();
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      confirmCreateLinkedPage();
+    }
   });
 
   // Ghost text (inline suggestion) event listeners
@@ -612,11 +749,20 @@ document.addEventListener('DOMContentLoaded', async () => {
               aiSuggestionCache.delete(firstKey);
             }
             aiSuggestionCache.set(cacheKey, message.completion);
-            showAISuggestion(message.text, message.completion);
+            if (isLinkModalGhostActive) {
+              showModalAISuggestion(message.text, message.completion);
+            } else {
+              showAISuggestion(message.text, message.completion);
+            }
           } else {
             aiSuggestionPending = false;
-            elements.ghostSuggestion.classList.remove('ai-loading');
-            clearGhostText();
+            if (isLinkModalGhostActive) {
+              elements.linkModalGhostSuggestion.classList.remove('ai-loading');
+              clearModalGhostText();
+            } else {
+              elements.ghostSuggestion.classList.remove('ai-loading');
+              clearGhostText();
+            }
           }
         }
         break;
@@ -1110,15 +1256,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     let finalPrompt = prompt;
     let isModification = false;
     if (currentHTML && !selectedPath) {
-      // Truncate HTML if too long to fit in prompt context
-      const maxHtmlContext = 15000;
+      // Truncate HTML if extremely long to fit in prompt context
+      const maxHtmlContext = 60000;
       let htmlContext = currentHTML;
       if (htmlContext.length > maxHtmlContext) {
-        htmlContext = htmlContext.substring(0, maxHtmlContext) + '\n... (truncated)';
+        // Smart truncation: keep <head> intact (contains CSS/links), truncate <body> middle
+        const headEnd = htmlContext.toLowerCase().indexOf('</head>');
+        const bodyEnd = htmlContext.toLowerCase().lastIndexOf('</body>');
+        if (headEnd !== -1 && bodyEnd !== -1) {
+          const headPart = htmlContext.substring(0, headEnd + 7);
+          const bodyStart = htmlContext.substring(headEnd + 7, headEnd + 7 + 8000);
+          const bodyTail = htmlContext.substring(Math.max(bodyEnd - 5000, headEnd + 7 + 8000));
+          htmlContext = headPart + bodyStart + '\n<!-- ... content truncated ... -->\n' + bodyTail;
+        } else {
+          htmlContext = htmlContext.substring(0, maxHtmlContext) + '\n... (truncated)';
+        }
       }
-      
+
       const revertNote = isReverted ? '\nNOTE: I have reverted to a previous version of this page. ' : '';
-      
+
       finalPrompt = `You are an HTML editor. You will receive an existing HTML file and a modification request.
 Your job is to apply ONLY the requested change and return the FULL modified HTML file.${revertNote}
 
@@ -1128,14 +1284,15 @@ ${htmlContext}
 MODIFICATION REQUEST: ${prompt}
 
 CRITICAL RULES:
-1. Copy the ENTIRE existing <style> block as-is. Do NOT remove, simplify, or rewrite any CSS property (padding, margin, gap, font-size, colors, gradients, shadows, border-radius, etc.)
-2. Copy the ENTIRE existing <script> block as-is. Add new JavaScript if the modification requires interactive functionality
-3. Only ADD or MODIFY the specific CSS/HTML/JS related to the request
-4. Keep ALL existing HTML structure, class names, ids, and attributes unchanged unless the request specifically asks to change them
-5. Keep ALL existing content (text, emojis, links) unless the request specifically asks to change them
-6. Do NOT reorganize, reformat, or "clean up" any code
-7. Return the COMPLETE HTML file starting with <!DOCTYPE html>
-8. The output must be ONLY HTML code, no explanation, no markdown`;
+1. Copy the ENTIRE existing <style> block EXACTLY as-is, character by character. Do NOT remove, simplify, rewrite, or reorganize any CSS property (padding, margin, gap, font-size, colors, gradients, shadows, border-radius, line-height, display, flex, grid, etc.)
+2. Copy ALL existing <link> tags (stylesheets, fonts, CDN) EXACTLY as-is
+3. Copy the ENTIRE existing <script> block as-is. Add new JavaScript if the modification requires interactive functionality
+4. Only ADD or MODIFY the specific CSS/HTML/JS related to the request
+5. Keep ALL existing HTML structure, class names, ids, and attributes unchanged unless the request specifically asks to change them
+6. Keep ALL existing content (text, emojis, links) unless the request specifically asks to change them
+7. Do NOT reorganize, reformat, or "clean up" any code
+8. Return the COMPLETE HTML file starting with <!DOCTYPE html>
+9. The output must be ONLY HTML code, no explanation, no markdown`;
       
       isModification = true;
       console.log('Sending modification prompt with HTML context, length:', currentHTML.length);
@@ -1235,21 +1392,26 @@ NEW INNER HTML:`;
 
     // Try to extract HTML from various sources
     let html = null;
-    
+
     // First try the html field directly
-    if (message.html && (message.html.includes('<!DOCTYPE') || message.html.includes('<html'))) {
+    if (message.html && (message.html.toLowerCase().includes('<!doctype') || message.html.includes('<html'))) {
       html = message.html;
       // If it's embedded in thinking text, extract it
       if (html.includes('**') || !html.trim().toLowerCase().startsWith('<!doctype')) {
         html = tryExtractHTML(html);
       }
     }
-    
+
     // Try rawText
     if (!html && message.rawText) {
       html = tryExtractHTML(message.rawText);
     }
-    
+
+    // Fallback: try tryExtractHTML on message.html itself (handles edge cases like truncated/wrapped HTML)
+    if (!html && message.html) {
+      html = tryExtractHTML(message.html);
+    }
+
     // Try error message if it might contain HTML
     if (!html && message.error) {
       html = tryExtractHTML(message.error);
@@ -1260,6 +1422,20 @@ NEW INNER HTML:`;
 
     // Fix [suspicious link removed] by detecting libraries and injecting correct CDN links
     if (html) html = fixSuspiciousLinks(html);
+
+    // Fix HTML entities inside <script> tags (Gemini encodes template literals)
+    if (html) html = fixEncodedScripts(html);
+
+    // Fix backslash-escaped ampersands in URLs (e.g. Google Fonts \&display=swap)
+    if (html) html = fixBackslashAmpersands(html);
+
+    // Fix backslash-escaped CSS comment markers (/\* → /*)
+    if (html) html = fixEscapedCSS(html);
+
+    // Ensure <!DOCTYPE html> is always present
+    if (html && !html.trim().toLowerCase().startsWith('<!doctype')) {
+      html = '<!DOCTYPE html>\n' + html;
+    }
 
     console.log('Extracted HTML length:', html?.length || 0);
     console.log('HTML preview:', html?.substring(0, 200) || 'null');
@@ -1343,7 +1519,7 @@ NEW INNER HTML:`;
   // Try to extract HTML from text (fallback parser)
   function tryExtractHTML(text) {
     if (!text) return null;
-    
+
     // Decode unicode escapes
     let decoded = text;
     let prev = '';
@@ -1353,10 +1529,13 @@ NEW INNER HTML:`;
       decoded = decoded.replace(/\\u([0-9a-fA-F]{4})/g, (m, h) => String.fromCharCode(parseInt(h, 16)));
     }
     decoded = decoded.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-    
+
+    // Remove markdown code fences
+    decoded = decoded.replace(/```html\s*/gi, '').replace(/```\s*/g, '');
+
     // Remove thinking markers like **text**
     decoded = decoded.replace(/\*\*[^*]+\*\*/g, '');
-    
+
     // Try to find HTML by index (more reliable than regex for large content)
     const doctypeIndex = decoded.toLowerCase().indexOf('<!doctype');
     if (doctypeIndex !== -1) {
@@ -1365,7 +1544,7 @@ NEW INNER HTML:`;
         return decoded.substring(doctypeIndex, htmlEndIndex + 7);
       }
     }
-    
+
     const htmlStartIndex = decoded.toLowerCase().indexOf('<html');
     if (htmlStartIndex !== -1) {
       const htmlEndIndex = decoded.toLowerCase().lastIndexOf('</html>');
@@ -1373,22 +1552,86 @@ NEW INNER HTML:`;
         return '<!DOCTYPE html>\n' + decoded.substring(htmlStartIndex, htmlEndIndex + 7);
       }
     }
-    
+
     // Try regex as fallback
     const match = decoded.match(/(<!DOCTYPE\s+html[\s\S]*?<\/html>)/i);
     if (match) return match[1];
-    
+
     const htmlMatch = decoded.match(/(<html[\s\S]*?<\/html>)/i);
     if (htmlMatch) return '<!DOCTYPE html>\n' + htmlMatch[1];
-    
+
     return null;
   }
 
   // Fix markdown-formatted URLs in HTML attributes
   // Gemini sometimes generates: href="[actual-url](google-search-url)" instead of href="actual-url"
+  // Also handles: href="[url](url)&display=swap" where extra params follow the markdown pattern
   function fixMarkdownUrls(html) {
     if (!html) return html;
-    return html.replace(/((?:href|src|action|poster|data-src)\s*=\s*["'])\[([^\]]+)\]\([^)]*\)(["'])/gi, '$1$2$3');
+    // Fix in HTML attributes (href, src, etc.)
+    html = html.replace(/((?:href|src|action|poster|data-src)\s*=\s*["'])\[([^\]]+)\]\([^)]*\)([^"']*)(["'])/gi, '$1$2$3$4');
+    // Fix markdown URLs inside <script> blocks (e.g. image URLs in JS arrays)
+    // Pattern: [https://actual-url](https://google-search-url) → https://actual-url
+    html = html.replace(/<script(?:\s[^>]*)?>[\s\S]*?<\/script>/gi, (scriptBlock) => {
+      if (scriptBlock.includes('__sandbox_bridge__')) return scriptBlock;
+      return scriptBlock.replace(/\[(https?:\/\/[^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
+    });
+    return html;
+  }
+
+  // Fix HTML entities inside <script> tags that Gemini sometimes generates
+  // Browsers treat <script> as raw text (RAWTEXT state), so &#39; stays as literal "&#39;"
+  // instead of being decoded to ' — this breaks all JavaScript execution
+  function fixEncodedScripts(html) {
+    if (!html) return html;
+    return html.replace(/<script(?:\s[^>]*)?>[\s\S]*?<\/script>/gi, (scriptBlock) => {
+      // Skip the sandbox bridge script
+      if (scriptBlock.includes('__sandbox_bridge__')) return scriptBlock;
+      // Only fix if the script content actually contains HTML entities
+      if (!/&(?:lt|gt|amp|quot|#39|#x27|#34|#60|#62);/i.test(scriptBlock)) return scriptBlock;
+      // Extract tag and content
+      const openTagEnd = scriptBlock.indexOf('>') + 1;
+      const closeTagStart = scriptBlock.lastIndexOf('</script>');
+      if (openTagEnd <= 0 || closeTagStart <= 0) return scriptBlock;
+      const openTag = scriptBlock.substring(0, openTagEnd);
+      const content = scriptBlock.substring(openTagEnd, closeTagStart);
+      const closeTag = scriptBlock.substring(closeTagStart);
+      // Decode HTML entities in the script content
+      let decoded = content
+        .replace(/&#39;/g, "'")
+        .replace(/&#x27;/gi, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&#34;/g, '"')
+        .replace(/&lt;/g, '<')
+        .replace(/&#60;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&#62;/g, '>')
+        .replace(/&amp;/g, '&');
+      // CRITICAL: Ensure decoded content doesn't create premature </script> closing tag
+      // The HTML parser uses RAWTEXT state for <script> — a literal </script> would close it
+      decoded = decoded.replace(/<\/script>/gi, '<\\/script>');
+      return openTag + decoded + closeTag;
+    });
+  }
+
+  // Fix backslash-escaped ampersands in URLs (e.g. \&amp; or \& in href/src attributes)
+  function fixBackslashAmpersands(html) {
+    if (!html) return html;
+    // Fix \&amp; → & and \& → & inside attribute values
+    return html.replace(/((?:href|src|action|poster|data-src)\s*=\s*["'])([^"']*)(["'])/gi, (match, prefix, url, quote) => {
+      const fixed = url.replace(/\\&amp;/g, '&').replace(/\\&/g, '&');
+      return prefix + fixed + quote;
+    });
+  }
+
+  // Fix backslash-escaped CSS comment markers in <style> blocks
+  // Gemini sometimes generates /\* comment \*/ instead of /* comment */
+  // This completely breaks CSS parsing since the browser doesn't recognize /\* as comment start
+  function fixEscapedCSS(html) {
+    if (!html) return html;
+    return html.replace(/<style(?:\s[^>]*)?>[\s\S]*?<\/style>/gi, (styleBlock) => {
+      return styleBlock.replace(/\/\\\*/g, '/*').replace(/\\\*\//g, '*/');
+    });
   }
 
   // Fix "[suspicious link removed]" placeholders that Gemini/Cloudflare may insert
@@ -1527,6 +1770,13 @@ NEW INNER HTML:`;
 
   // Update preview iframe via sandbox postMessage
   function updatePreview(html) {
+    // Apply Gemini artifact fixes to ALL HTML before preview (covers DB-loaded pages too)
+    if (html) {
+      html = fixMarkdownUrls(html);
+      html = fixEncodedScripts(html);
+      html = fixBackslashAmpersands(html);
+      html = fixEscapedCSS(html);
+    }
     pendingAfterReady = [];
     if (isInspectMode) {
       pendingAfterReady.push({ type: 'ENABLE_INSPECT' });
@@ -1997,5 +2247,122 @@ NEW INNER HTML:`;
     elements.deployedUrl.href = '#';
     elements.deployedUrl.textContent = '';
     elements.deployBtn.classList.remove('deployed');
+  }
+
+  // =====================
+  // LINK NAVIGATION
+  // =====================
+
+  // Extract page name from href
+  function extractPageNameFromHref(href) {
+    if (!href) return '';
+    // Remove query string and hash
+    let name = href.split('?')[0].split('#')[0];
+    // Get filename only (strip path)
+    const lastSlash = name.lastIndexOf('/');
+    if (lastSlash !== -1) name = name.substring(lastSlash + 1);
+    // Remove file extension
+    name = name.replace(/\.(html?|php|asp|jsp)$/i, '');
+    // Skip empty or index
+    if (!name || name.toLowerCase() === 'index') return '';
+    // Replace hyphens and underscores with spaces
+    name = name.replace(/[-_]/g, ' ');
+    // Capitalize each word
+    name = name.replace(/\b\w/g, c => c.toUpperCase());
+    return name.trim();
+  }
+
+  // Handle link click from preview iframe
+  async function handlePreviewLinkClick(href) {
+    if (isGenerating) return;
+
+    const pageName = extractPageNameFromHref(href)  || 'Trang Mới ' + Date.now();
+    if (!pageName) {
+      showStatus('Liên kết không hợp lệ', 'info');
+      return;
+    }
+
+    // Check if a page with this name already exists
+    const pages = await htmlDB.getAllPages();
+    const matchedPage = pages.find(p =>
+      p.name.toLowerCase() === pageName.toLowerCase()
+    );
+
+    if (matchedPage) {
+      // Page exists, navigate to it
+      await selectPage(matchedPage.id);
+      await loadPages();
+      showStatus(`Đã chuyển sang trang "${matchedPage.name}"`, 'success');
+    } else {
+      // Page doesn't exist, show confirmation modal
+      showLinkModal(pageName);
+    }
+  }
+
+  // Show link navigation modal
+  function showLinkModal(pageName) {
+    pendingLinkPageName = pageName;
+    designContextHTML = currentHTML;
+    elements.linkModalPageName.textContent = pageName;
+    elements.linkModalPromptInput.value = `Thay nội dung chính thành nội dung phù hợp cho trang ${pageName}. Giữ nguyên toàn bộ style, header, footer, nav.`;
+    clearModalGhostText();
+    cancelAISuggestion();
+    elements.linkModal.classList.remove('hidden');
+    setTimeout(() => {
+      elements.linkModalPromptInput.focus();
+      elements.linkModalPromptInput.select();
+    }, 100);
+  }
+
+  // Hide link navigation modal
+  function hideLinkModal() {
+    elements.linkModal.classList.add('hidden');
+    pendingLinkPageName = null;
+    isLinkModalGhostActive = false;
+    clearModalGhostText();
+    cancelAISuggestion();
+  }
+
+  // Confirm creating a linked page
+  async function confirmCreateLinkedPage() {
+    if (!pendingLinkPageName) return;
+
+    const pageName = pendingLinkPageName;
+    const contextHTML = designContextHTML;
+    const userPrompt = elements.linkModalPromptInput.value.trim() || `Thay nội dung chính thành nội dung phù hợp cho trang ${pageName}. Giữ nguyên toàn bộ style, header, footer, nav.`;
+    hideLinkModal();
+
+    try {
+      // Create the new page
+      const pageId = await htmlDB.createPage(pageName);
+      currentPageId = pageId;
+      await loadPages();
+      await loadHistory();
+
+      // Set the design context so generateHTML treats it as a modification
+      currentHTML = contextHTML;
+      isReverted = false;
+      revertedFromPrompt = '';
+
+      // Clear any element selection from previous page
+      clearElementSelection();
+
+      // Show empty preview temporarily
+      showEmptyPreview();
+      hideDeployedUrl();
+
+      // Set the user's prompt from the modal into the main prompt input
+      elements.promptInput.value = userPrompt;
+      clearGhostText();
+      cancelAISuggestion();
+
+      showStatus(`Đã tạo trang "${pageName}", đang tạo nội dung...`, 'success');
+
+      // Auto-trigger generation
+      elements.generateBtn.click();
+    } catch (error) {
+      console.error('Failed to create linked page:', error);
+      showStatus('Không thể tạo trang mới', 'error');
+    }
   }
 });

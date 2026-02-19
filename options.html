@@ -189,6 +189,27 @@
 
       </section>
     </main>
+    <!-- Link Navigation Modal -->
+    <div id="linkModal" class="link-modal-overlay hidden">
+      <div class="link-modal">
+        <div class="link-modal-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/></svg>
+        </div>
+        <h3 class="link-modal-title">Tạo trang mới</h3>
+        <p class="link-modal-desc">
+          Trang <strong id="linkModalPageName"></strong> chưa tồn tại.<br>
+          Mô tả nội dung bạn muốn tạo:
+        </p>
+        <div class="link-modal-prompt-wrapper">
+          <textarea id="linkModalPromptInput" placeholder="Ví dụ: Trang giới thiệu với thông tin công ty, đội ngũ, tầm nhìn..."></textarea>
+          <div class="link-modal-prompt-ghost" id="linkModalPromptGhost" aria-hidden="true"><span class="ghost-typed" id="linkModalGhostTyped"></span><span class="ghost-suggestion" id="linkModalGhostSuggestion"></span></div>
+        </div>
+        <div class="link-modal-actions">
+          <button id="linkModalCancel" class="btn btn-secondary">Hủy</button>
+          <button id="linkModalConfirm" class="btn btn-primary">Tạo trang</button>
+        </div>
+      </div>
+    </div>
     <!-- Dynamic Island Toast -->
     <div id="status" class="toast-island"></div>
   </div>
