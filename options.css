@@ -879,27 +879,74 @@ body {
   gap: 12px;
 }
 
+/* Prompt Wrapper - container for textarea + ghost text */
+.prompt-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  transition: border-color 0.2s;
+}
+
+.prompt-wrapper:focus-within {
+  border-color: var(--accent-primary);
+}
+
 #promptInput {
   flex: 1;
   min-height: 120px;
   padding: 12px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  background: transparent;
+  border: none;
   border-radius: 8px;
   color: var(--text-primary);
   font-size: 13px;
   line-height: 1.5;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   resize: none;
-  transition: border-color 0.2s;
+  position: relative;
+  z-index: 1;
 }
 
 #promptInput:focus {
   outline: none;
-  border-color: var(--accent-primary);
 }
 
 #promptInput::placeholder {
   color: var(--text-secondary);
+}
+
+/* Ghost text overlay */
+.prompt-ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.ghost-typed {
+  visibility: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.ghost-suggestion {
+  color: var(--text-secondary);
+  opacity: 0.45;
 }
 
 .prompt-actions {

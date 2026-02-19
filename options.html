@@ -122,10 +122,13 @@
             </span>
           </div>
           <div class="section-content">
-            <textarea 
-              id="promptInput" 
-              placeholder="Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ..."
-            ></textarea>
+            <div class="prompt-wrapper">
+              <textarea
+                id="promptInput"
+                placeholder="Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ..."
+              ></textarea>
+              <div class="prompt-ghost" id="promptGhost" aria-hidden="true"><span class="ghost-typed" id="ghostTyped"></span><span class="ghost-suggestion" id="ghostSuggestion"></span></div>
+            </div>
             <div class="prompt-actions">
               <div class="model-toggle" id="modelToggle" title="Chế độ AI">
                 <span class="model-toggle-option active" data-value="flash">Nhanh</span>

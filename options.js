@@ -28,7 +28,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     selectedElementInfo: document.getElementById('selectedElementInfo'),
     selectedSelector: document.getElementById('selectedSelector'),
     clearSelection: document.getElementById('clearSelection'),
-    editModeLabel: document.getElementById('editModeLabel')
+    editModeLabel: document.getElementById('editModeLabel'),
+    // Ghost text elements
+    promptGhost: document.getElementById('promptGhost'),
+    ghostTyped: document.getElementById('ghostTyped'),
+    ghostSuggestion: document.getElementById('ghostSuggestion')
   };
 
   let currentHTML = '';
@@ -56,6 +60,56 @@ document.addEventListener('DOMContentLoaded', async () => {
   let pendingRequests = {};
   let requestCounter = 0;
   let pendingAfterReady = [];
+
+  // Inline suggestion (ghost text) for prompt input
+  const PROMPT_SUGGESTIONS = [
+    'Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section, menu sản phẩm dạng card và footer',
+    'Tạo trang portfolio cá nhân với thiết kế hiện đại, có hero section, phần giới thiệu, dự án và liên hệ',
+    'Tạo dashboard quản lý với sidebar, biểu đồ thống kê, bảng dữ liệu và thông báo',
+    'Tạo trang e-commerce với sản phẩm nổi bật, giỏ hàng, bộ lọc và thanh tìm kiếm',
+    'Tạo form đăng nhập và đăng ký với validation, hiệu ứng chuyển đổi mượt mà',
+    'Tạo trang giới thiệu công ty với timeline, đội ngũ nhân sự và đối tác',
+    'Tạo trang menu nhà hàng với danh mục món ăn, giá và mô tả hấp dẫn',
+    'Tạo trang blog với sidebar, bài viết nổi bật, phân trang và tag',
+    'Tạo pricing table so sánh 3 gói dịch vụ với nút đăng ký',
+    'Tạo trang weather app hiển thị thời tiết theo thành phố với icon và animation',
+    'Tạo trang quản lý todo list với thêm, xóa, đánh dấu hoàn thành và bộ lọc',
+    'Tạo trang calculator máy tính với giao diện đẹp và các phép tính cơ bản',
+    'Tạo trang FAQ với accordion mở rộng/thu gọn và thanh tìm kiếm',
+    'Tạo trang gallery ảnh với lightbox, grid layout responsive và hiệu ứng hover',
+    'Tạo trang countdown timer đếm ngược sự kiện với thiết kế nổi bật',
+  ];
+
+  // Find matching suggestion for current input text
+  function findSuggestion(text) {
+    if (!text || text.length < 2) return null;
+    const lower = text.toLowerCase();
+    for (const suggestion of PROMPT_SUGGESTIONS) {
+      if (suggestion.toLowerCase().startsWith(lower) && suggestion.length > text.length) {
+        return suggestion;
+      }
+    }
+    return null;
+  }
+
+  // Update ghost text display
+  function updateGhostText() {
+    const text = elements.promptInput.value;
+    const suggestion = findSuggestion(text);
+    if (suggestion && !elements.promptInput.disabled) {
+      elements.ghostTyped.textContent = text;
+      elements.ghostSuggestion.textContent = suggestion.substring(text.length);
+      elements.promptGhost.scrollTop = elements.promptInput.scrollTop;
+    } else {
+      clearGhostText();
+    }
+  }
+
+  // Clear ghost text
+  function clearGhostText() {
+    elements.ghostTyped.textContent = '';
+    elements.ghostSuggestion.textContent = '';
+  }
 
   // Bridge script - injected into sandbox iframe for cross-origin communication
   const BRIDGE_SCRIPT = `<script id="__sandbox_bridge__">
@@ -308,6 +362,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   elements.inspectBtn.addEventListener('click', toggleInspectMode);
   elements.clearSelection.addEventListener('click', clearElementSelection);
 
+  // Ghost text (inline suggestion) event listeners
+  elements.promptInput.addEventListener('input', updateGhostText);
+  elements.promptInput.addEventListener('scroll', () => {
+    elements.promptGhost.scrollTop = elements.promptInput.scrollTop;
+  });
+  elements.promptInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && elements.ghostSuggestion.textContent) {
+      e.preventDefault();
+      const suggestion = findSuggestion(elements.promptInput.value);
+      if (suggestion) {
+        elements.promptInput.value = suggestion;
+        clearGhostText();
+      }
+    }
+  });
+
   // Model toggle
   let currentModelType = 'flash';
   elements.modelToggle.querySelectorAll('.model-toggle-option').forEach(opt => {
@@ -502,7 +572,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       revertedFromPrompt = '';
       showEmptyPreview();
       elements.promptInput.value = '';
-      
+      clearGhostText();
+
       showStatus(`Đã tạo Page ${pageNumber}`, 'success');
     } catch (error) {
       console.error('Failed to create page:', error);
@@ -699,7 +770,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentHTML = item.html;
         updatePreview(item.html);
         elements.promptInput.value = '';
-        
+        clearGhostText();
+
         // Check if this is a revert (not the latest history item)
         const history = await htmlDB.getPageHistory(currentPageId);
         const latestItem = history.length > 0 ? history[0] : null;
@@ -793,6 +865,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.promptInput.value = '';
     elements.promptInput.disabled = true;
     elements.promptInput.placeholder = 'Đang tạo HTML...';
+    clearGhostText();
     
     // Lock all UI
     lockUI();
