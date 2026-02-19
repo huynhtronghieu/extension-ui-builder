@@ -61,6 +61,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   let requestCounter = 0;
   let pendingAfterReady = [];
 
+  // Debounce utility
+  function debounce(fn, delay) {
+    let timer = null;
+    const debounced = (...args) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { timer = null; fn(...args); }, delay);
+    };
+    debounced.cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    return debounced;
+  }
+
   // Inline suggestion (ghost text) for prompt input
   const PROMPT_SUGGESTIONS = [
     'Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section, menu sản phẩm dạng card và footer',
@@ -78,9 +89,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     'Tạo trang FAQ với accordion mở rộng/thu gọn và thanh tìm kiếm',
     'Tạo trang gallery ảnh với lightbox, grid layout responsive và hiệu ứng hover',
     'Tạo trang countdown timer đếm ngược sự kiện với thiết kế nổi bật',
+    'Tạo trang đặt bàn nhà hàng với form chọn ngày, giờ, số khách và ghi chú',
+    'Tạo trang giới thiệu khách sạn với phòng, tiện nghi, đánh giá và đặt phòng',
+    'Tạo trang bán hàng thời trang với banner sale, sản phẩm hot và bộ lọc kích cỡ',
+    'Tạo trang quản lý dự án kiểu Kanban với cột Todo, In Progress, Done',
+    'Tạo trang đăng nhập admin dashboard với form xác thực và giao diện tối giản',
+    'Tạo trang tin tức với bài viết nổi bật, sidebar danh mục và phân trang',
+    'Tạo trang fitness tracker với biểu đồ tiến trình, mục tiêu và lịch tập',
+    'Tạo trang recipe book với công thức nấu ăn, nguyên liệu và hướng dẫn từng bước',
+    'Tạo trang music player với playlist, controls và thanh tiến trình',
+    'Tạo trang chat messenger với danh sách hội thoại, tin nhắn và input gửi',
+    'Tạo trang event invitation với countdown, thông tin sự kiện và RSVP form',
+    'Tạo trang resume CV online với timeline kinh nghiệm, kỹ năng và liên hệ',
+    'Tạo trang quiz game với câu hỏi, đáp án, điểm số và màn hình kết quả',
+    'Tạo trang booking spa với dịch vụ, chọn thời gian và thanh toán',
+    'Tạo trang social media profile với avatar, bio, bài đăng và followers',
   ];
 
-  // Find matching suggestion for current input text
+  // AI suggestion state
+  let aiSuggestionPending = false;
+  let aiSuggestionRequestId = 0;
+  let currentSuggestionSource = null; // 'prefix' | 'ai' | null
+  const aiSuggestionCache = new Map();
+  const AI_CACHE_MAX = 50;
+
+  // Find matching suggestion for current input text (prefix matching)
   function findSuggestion(text) {
     if (!text || text.length < 2) return null;
     const lower = text.toLowerCase();
@@ -99,9 +132,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (suggestion && !elements.promptInput.disabled) {
       elements.ghostTyped.textContent = text;
       elements.ghostSuggestion.textContent = suggestion.substring(text.length);
+      elements.ghostSuggestion.classList.remove('ai-loading');
       elements.promptGhost.scrollTop = elements.promptInput.scrollTop;
+      currentSuggestionSource = 'prefix';
+      cancelAISuggestion();
     } else {
       clearGhostText();
+      scheduleAISuggestion(text);
     }
   }
 
@@ -109,7 +146,83 @@ document.addEventListener('DOMContentLoaded', async () => {
   function clearGhostText() {
     elements.ghostTyped.textContent = '';
     elements.ghostSuggestion.textContent = '';
+    elements.ghostSuggestion.classList.remove('ai-loading');
+    currentSuggestionSource = null;
   }
+
+  // Cancel any pending AI suggestion
+  function cancelAISuggestion() {
+    debouncedAISuggestion.cancel();
+    aiSuggestionRequestId++;
+    if (aiSuggestionPending) {
+      aiSuggestionPending = false;
+      if (currentSuggestionSource === 'ai-loading') {
+        clearGhostText();
+      }
+    }
+  }
+
+  // Schedule an AI suggestion (debounced)
+  function scheduleAISuggestion(text) {
+    if (!text || text.trim().length < 5) {
+      cancelAISuggestion();
+      return;
+    }
+    if (isGenerating || !isConnected) return;
+    debouncedAISuggestion(text.trim());
+  }
+
+  // Request AI suggestion (called after debounce)
+  function requestAISuggestion(text) {
+    const cacheKey = text.toLowerCase();
+    if (aiSuggestionCache.has(cacheKey)) {
+      showAISuggestion(text, aiSuggestionCache.get(cacheKey));
+      return;
+    }
+
+    aiSuggestionPending = true;
+    currentSuggestionSource = 'ai-loading';
+    elements.ghostTyped.textContent = text;
+    elements.ghostSuggestion.textContent = '...';
+    elements.ghostSuggestion.classList.add('ai-loading');
+
+    const requestId = ++aiSuggestionRequestId;
+    chrome.runtime.sendMessage({
+      type: 'SUGGEST_COMPLETION',
+      text: text,
+      requestId: requestId
+    });
+  }
+
+  // Display AI suggestion result
+  function showAISuggestion(inputText, completion) {
+    const currentText = elements.promptInput.value.trim();
+    if (currentText !== inputText) return;
+    if (elements.promptInput.disabled) return;
+
+    aiSuggestionPending = false;
+    elements.ghostSuggestion.classList.remove('ai-loading');
+
+    if (completion) {
+      // If completion starts with the input, strip the overlap
+      let suffix = completion;
+      if (suffix.toLowerCase().startsWith(inputText.toLowerCase())) {
+        suffix = suffix.substring(inputText.length);
+      }
+      // Ensure it starts with a space if needed
+      if (suffix && !suffix.startsWith(' ') && !inputText.endsWith(' ')) {
+        suffix = ' ' + suffix;
+      }
+      elements.ghostTyped.textContent = currentText;
+      elements.ghostSuggestion.textContent = suffix;
+      currentSuggestionSource = 'ai';
+    } else {
+      clearGhostText();
+    }
+  }
+
+  const debouncedAISuggestion = debounce(requestAISuggestion, 800);
+
 
   // Bridge script - injected into sandbox iframe for cross-origin communication
   const BRIDGE_SCRIPT = `<script id="__sandbox_bridge__">
@@ -368,13 +481,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.promptGhost.scrollTop = elements.promptInput.scrollTop;
   });
   elements.promptInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab' && elements.ghostSuggestion.textContent) {
+    if (e.key === 'Tab' && elements.ghostSuggestion.textContent && currentSuggestionSource) {
       e.preventDefault();
-      const suggestion = findSuggestion(elements.promptInput.value);
-      if (suggestion) {
-        elements.promptInput.value = suggestion;
-        clearGhostText();
+      if (currentSuggestionSource === 'prefix') {
+        const suggestion = findSuggestion(elements.promptInput.value);
+        if (suggestion) {
+          elements.promptInput.value = suggestion;
+        }
+      } else if (currentSuggestionSource === 'ai') {
+        elements.promptInput.value = elements.promptInput.value + elements.ghostSuggestion.textContent;
       }
+      clearGhostText();
     }
   });
 
@@ -431,6 +548,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         break;
       case 'GENERATION_PROGRESS':
         showStatus(message.text, 'info');
+        break;
+      case 'SUGGESTION_COMPLETED':
+        if (message.requestId === aiSuggestionRequestId && aiSuggestionPending) {
+          if (message.success && message.completion) {
+            const cacheKey = message.text.toLowerCase();
+            if (aiSuggestionCache.size >= AI_CACHE_MAX) {
+              const firstKey = aiSuggestionCache.keys().next().value;
+              aiSuggestionCache.delete(firstKey);
+            }
+            aiSuggestionCache.set(cacheKey, message.completion);
+            showAISuggestion(message.text, message.completion);
+          } else {
+            aiSuggestionPending = false;
+            elements.ghostSuggestion.classList.remove('ai-loading');
+            clearGhostText();
+          }
+        }
         break;
     }
   });
@@ -573,6 +707,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       showEmptyPreview();
       elements.promptInput.value = '';
       clearGhostText();
+      cancelAISuggestion();
 
       showStatus(`Đã tạo Page ${pageNumber}`, 'success');
     } catch (error) {
@@ -612,12 +747,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Clear revert state when switching pages
       isReverted = false;
       revertedFromPrompt = '';
-      
+
       // Load page history
       await loadHistory();
-      
+
       // Clear element selection
       clearElementSelection();
+
+      // Cancel any pending AI suggestions and clear cache for new page context
+      cancelAISuggestion();
+      aiSuggestionCache.clear();
       
     } catch (error) {
       console.error('Failed to select page:', error);
@@ -771,6 +910,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         updatePreview(item.html);
         elements.promptInput.value = '';
         clearGhostText();
+        cancelAISuggestion();
 
         // Check if this is a revert (not the latest history item)
         const history = await htmlDB.getPageHistory(currentPageId);
@@ -866,6 +1006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.promptInput.disabled = true;
     elements.promptInput.placeholder = 'Đang tạo HTML...';
     clearGhostText();
+    cancelAISuggestion();
     
     // Lock all UI
     lockUI();

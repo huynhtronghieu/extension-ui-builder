@@ -265,6 +265,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(result);
       })();
       return true;
+
+    case 'SUGGEST_COMPLETION':
+      // Forward AI suggestion request to content script (fail silently)
+      (async () => {
+        if (!geminiTabId) {
+          sendResponse({ success: false });
+          return;
+        }
+        try {
+          await sendMessageWithTimeout(geminiTabId, {
+            type: 'SUGGEST_REQUEST',
+            text: message.text,
+            requestId: message.requestId
+          }, 8000);
+          sendResponse({ success: true });
+        } catch (e) {
+          sendResponse({ success: false });
+        }
+      })();
+      return true;
+
+    case 'SUGGESTION_RESULT':
+      // Relay AI suggestion result back to options page
+      notifyOptionsPage({
+        type: 'SUGGESTION_COMPLETED',
+        success: message.success,
+        completion: message.completion || '',
+        text: message.text || '',
+        requestId: message.requestId
+      });
+      break;
   }
 
   return false;

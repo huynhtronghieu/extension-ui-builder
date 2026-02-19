@@ -740,6 +740,209 @@ Start your response with exactly: <!DOCTYPE html>`;
     }
   }
 
+  // =====================
+  // AI SUGGESTION (Autocomplete)
+  // =====================
+
+  // Build a stateless request body for suggestions (no conversation context)
+  function buildSuggestionBody(prompt) {
+    const uuid = generateUUID();
+    const requestData = [
+      [prompt, 0, null, null, null, null, 0],
+      ["vi"],
+      ["", "", "", null, null, null, null, null, null, ""],
+      "",
+      uuid,
+      null,
+      [1],
+      1,
+      null,
+      null,
+      1,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      [[1]],
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      1,
+      null,
+      null,
+      [4],
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      [2],
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      uuid,
+      null,
+      [],
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      2
+    ];
+    const innerJson = JSON.stringify(requestData);
+    const outerJson = JSON.stringify([null, innerJson]);
+    return `f.req=${encodeURIComponent(outerJson)}&at=${encodeURIComponent(API_CONFIG.atValue)}&`;
+  }
+
+  // Extract plain text from a suggestion response (simplified parser)
+  function extractSuggestionText(responseText) {
+    try {
+      const lines = responseText.split('\n');
+      let bestText = '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || /^\d+$/.test(trimmed)) continue;
+        if (!trimmed.includes('wrb.fr')) continue;
+
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (!Array.isArray(parsed)) continue;
+
+          for (const item of parsed) {
+            if (!Array.isArray(item) || item[0] !== 'wrb.fr' || !item[2]) continue;
+            try {
+              const innerData = JSON.parse(item[2]);
+              if (innerData && innerData[4] && innerData[4][0] && innerData[4][0][1]) {
+                const responseArr = innerData[4][0][1];
+                let text = '';
+                if (Array.isArray(responseArr) && responseArr[0]) {
+                  text = decodeUnicodeEscapes(responseArr[0]);
+                } else if (typeof responseArr === 'string') {
+                  text = decodeUnicodeEscapes(responseArr);
+                }
+                if (text && text.length > bestText.length) {
+                  bestText = text;
+                }
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
+      }
+
+      if (!bestText) return null;
+
+      // Clean up the suggestion text
+      let cleaned = bestText.trim();
+      // Remove markdown formatting
+      cleaned = cleaned.replace(/\*\*[^*]+\*\*/g, '');
+      cleaned = cleaned.replace(/```[^`]*```/g, '');
+      // Remove surrounding quotes
+      cleaned = cleaned.replace(/^["'`]+|["'`]+$/g, '');
+      // Check for NONE/empty responses
+      if (!cleaned || cleaned === 'NONE' || cleaned.length < 3) return null;
+      // Truncate if too long
+      if (cleaned.length > 100) cleaned = cleaned.substring(0, 100);
+
+      return cleaned;
+    } catch (e) {
+      console.error('extractSuggestionText error:', e);
+      return null;
+    }
+  }
+
+  // Suggest completion for partial prompt text
+  async function suggestCompletion(text, requestId) {
+    try {
+      if (!API_CONFIG.atValue) {
+        extractTokens();
+        if (!API_CONFIG.atValue) {
+          window.postMessage({
+            type: 'GEMINI_SUGGEST_RESULT',
+            success: false,
+            text: text,
+            requestId: requestId
+          }, '*');
+          return;
+        }
+      }
+
+      const prompt = `Complete this UI generation prompt in Vietnamese. Return ONLY the completion text (the part after what they typed). Keep it concise (<80 chars). If you cannot complete, return: NONE\n\nUser's partial input: "${text}"`;
+
+      const url = buildUrl();
+      const body = buildSuggestionBody(prompt);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'X-Same-Domain': '1',
+        },
+        body: body,
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        window.postMessage({
+          type: 'GEMINI_SUGGEST_RESULT',
+          success: false,
+          text: text,
+          requestId: requestId
+        }, '*');
+        return;
+      }
+
+      const responseText = await response.text();
+      const completion = extractSuggestionText(responseText);
+
+      window.postMessage({
+        type: 'GEMINI_SUGGEST_RESULT',
+        success: !!completion,
+        completion: completion || '',
+        text: text,
+        requestId: requestId
+      }, '*');
+
+    } catch (e) {
+      console.error('suggestCompletion error:', e);
+      window.postMessage({
+        type: 'GEMINI_SUGGEST_RESULT',
+        success: false,
+        text: text,
+        requestId: requestId
+      }, '*');
+    }
+  }
+
   // Listen for generate requests from content script
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
@@ -759,6 +962,10 @@ Start your response with exactly: <!DOCTYPE html>`;
         responseId: event.data.responseId,
         choiceId: event.data.choiceId
       });
+    }
+
+    if (event.data.type === 'GEMINI_SUGGEST_REQUEST') {
+      suggestCompletion(event.data.text, event.data.requestId);
     }
   });
 

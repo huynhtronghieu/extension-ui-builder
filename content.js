@@ -61,6 +61,21 @@
       return true;
     }
 
+    // Handle AI suggestion request (no waiting for injected script - fail silently)
+    if (message.type === 'SUGGEST_REQUEST') {
+      if (!injectedScriptReady) {
+        sendResponse({ success: false });
+        return true;
+      }
+      window.postMessage({
+        type: 'GEMINI_SUGGEST_REQUEST',
+        text: message.text,
+        requestId: message.requestId
+      }, '*');
+      sendResponse({ success: true });
+      return true;
+    }
+
     if (message.type === 'GENERATE_REQUEST') {
       // Reset isGenerating if it's been stuck
       if (isGenerating) {
@@ -142,6 +157,16 @@
       chrome.runtime.sendMessage({
         type: 'GENERATION_PROGRESS',
         text: data.text
+      });
+    }
+
+    if (data.type === 'GEMINI_SUGGEST_RESULT') {
+      chrome.runtime.sendMessage({
+        type: 'SUGGESTION_RESULT',
+        success: data.success,
+        completion: data.completion || '',
+        text: data.text || '',
+        requestId: data.requestId
       });
     }
   });

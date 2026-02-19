@@ -949,6 +949,16 @@ body {
   opacity: 0.45;
 }
 
+.ghost-suggestion.ai-loading {
+  opacity: 0.35;
+  animation: ghostPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes ghostPulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.55; }
+}
+
 .prompt-actions {
   display: flex;
   gap: 12px;
