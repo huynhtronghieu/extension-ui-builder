@@ -50,10 +50,10 @@ QUAN TRỌNG - QUY TẮC BẮT BUỘC:
 2. Bắt đầu NGAY với <!DOCTYPE html>
 3. KHÔNG viết "Đây là code", "Dưới đây là", "``html" hay bất kỳ text nào khác
 4. HTML phải đầy đủ: DOCTYPE, html, head (với meta charset, viewport, title, style), body
-5. CSS được viết trong thẻ <style> trong <head>
+5. CSS được viết trong thẻ <style> trong <head>, JS được viết trong thẻ <script> ở cuối <body> cho tất cả các tính năng tương tác (dropdown, modal, tab, slider, toggle, v.v.)
 6. Thiết kế phải responsive và đẹp mắt
-7. Sử dụng Google Fonts nếu cần
-8. KHÔNG sử dụng JavaScript external hoặc hình ảnh external hoặc emoji icon (có thể dùng gradient, hoặc inline SVG)
+7. Sử dụng Google Fonts cho font chữ phù hợp với chủ đề
+8. KHÔNG sử dụng emoji icon, CHỈ sử dụng fa-icon (hoặc có thể dùng gradient, hoặc inline SVG)
 
 Trả về NGAY mã HTML:`;
   }
