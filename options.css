@@ -1259,7 +1259,7 @@ body {
 }
 
 .preview-container.inspect-mode::after {
-  content: 'Chế độ Inspect - Click để chọn phần tử';
+  content: 'Inspect Mode - Click to select element';
   position: absolute;
   top: 10px;
   left: 50%;
@@ -1273,6 +1273,10 @@ body {
   z-index: 1000;
   pointer-events: none;
   animation: fadeInOut 2s infinite;
+}
+
+body[data-lang="vi"] .preview-container.inspect-mode::after {
+  content: 'Chế độ Inspect - Click để chọn phần tử';
 }
 
 @keyframes fadeInOut {
@@ -1336,6 +1340,55 @@ body.generating #generateBtn {
 
 #clearHistory {
   display: none;
+}
+
+/* ========================= */
+/* Header Actions & Language */
+/* ========================= */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lang-toggle {
+  display: flex;
+  position: relative;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.lang-toggle-option {
+  position: relative;
+  z-index: 1;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.3s ease;
+  user-select: none;
+  text-align: center;
+}
+
+.lang-toggle-option.active {
+  color: var(--bg-secondary);
+}
+
+.lang-toggle-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  height: calc(100% - 4px);
+  background: var(--text-primary);
+  border-radius: 4px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
 /* ========================= */

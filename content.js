@@ -69,6 +69,7 @@
         type: 'GEMINI_SUGGEST_REQUEST',
         text: message.text,
         requestId: message.requestId,
+        suggestLang: message.suggestLang || 'vi',
         conversationId: message.conversationId || '',
         responseId: message.responseId || '',
         choiceId: message.choiceId || ''

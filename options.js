@@ -1,5 +1,8 @@
 // Options Page Controller
 document.addEventListener('DOMContentLoaded', async () => {
+  // Initialize i18n
+  await I18n.init();
+
   // Initialize database
   await htmlDB.init();
 
@@ -104,38 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Inline suggestion (ghost text) for prompt input
-  const PROMPT_SUGGESTIONS = [
-    'Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section, menu sản phẩm dạng card và footer',
-    'Tạo trang portfolio cá nhân với thiết kế hiện đại, có hero section, phần giới thiệu, dự án và liên hệ',
-    'Tạo dashboard quản lý với sidebar, biểu đồ thống kê, bảng dữ liệu và thông báo',
-    'Tạo trang e-commerce với sản phẩm nổi bật, giỏ hàng, bộ lọc và thanh tìm kiếm',
-    'Tạo form đăng nhập và đăng ký với validation, hiệu ứng chuyển đổi mượt mà',
-    'Tạo trang giới thiệu công ty với timeline, đội ngũ nhân sự và đối tác',
-    'Tạo trang menu nhà hàng với danh mục món ăn, giá và mô tả hấp dẫn',
-    'Tạo trang blog với sidebar, bài viết nổi bật, phân trang và tag',
-    'Tạo pricing table so sánh 3 gói dịch vụ với nút đăng ký',
-    'Tạo trang weather app hiển thị thời tiết theo thành phố với icon và animation',
-    'Tạo trang quản lý todo list với thêm, xóa, đánh dấu hoàn thành và bộ lọc',
-    'Tạo trang calculator máy tính với giao diện đẹp và các phép tính cơ bản',
-    'Tạo trang FAQ với accordion mở rộng/thu gọn và thanh tìm kiếm',
-    'Tạo trang gallery ảnh với lightbox, grid layout responsive và hiệu ứng hover',
-    'Tạo trang countdown timer đếm ngược sự kiện với thiết kế nổi bật',
-    'Tạo trang đặt bàn nhà hàng với form chọn ngày, giờ, số khách và ghi chú',
-    'Tạo trang giới thiệu khách sạn với phòng, tiện nghi, đánh giá và đặt phòng',
-    'Tạo trang bán hàng thời trang với banner sale, sản phẩm hot và bộ lọc kích cỡ',
-    'Tạo trang quản lý dự án kiểu Kanban với cột Todo, In Progress, Done',
-    'Tạo trang đăng nhập admin dashboard với form xác thực và giao diện tối giản',
-    'Tạo trang tin tức với bài viết nổi bật, sidebar danh mục và phân trang',
-    'Tạo trang fitness tracker với biểu đồ tiến trình, mục tiêu và lịch tập',
-    'Tạo trang recipe book với công thức nấu ăn, nguyên liệu và hướng dẫn từng bước',
-    'Tạo trang music player với playlist, controls và thanh tiến trình',
-    'Tạo trang chat messenger với danh sách hội thoại, tin nhắn và input gửi',
-    'Tạo trang event invitation với countdown, thông tin sự kiện và RSVP form',
-    'Tạo trang resume CV online với timeline kinh nghiệm, kỹ năng và liên hệ',
-    'Tạo trang quiz game với câu hỏi, đáp án, điểm số và màn hình kết quả',
-    'Tạo trang booking spa với dịch vụ, chọn thời gian và thanh toán',
-    'Tạo trang social media profile với avatar, bio, bài đăng và followers',
-  ];
+  // Prompt suggestions are loaded from I18n module
 
   // AI suggestion state
   let aiSuggestionPending = false;
@@ -148,7 +120,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function findSuggestion(text) {
     if (!text || text.length < 2) return null;
     const lower = text.toLowerCase();
-    for (const suggestion of PROMPT_SUGGESTIONS) {
+    for (const suggestion of I18n.getSuggestions()) {
       if (suggestion.toLowerCase().startsWith(lower) && suggestion.length > text.length) {
         return suggestion;
       }
@@ -240,7 +212,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.runtime.sendMessage({
       type: 'SUGGEST_COMPLETION',
       text: text,
-      requestId: requestId
+      requestId: requestId,
+      suggestLang: I18n.getLang()
     });
   }
 
@@ -542,11 +515,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.generateBtn.classList.add('edit-mode');
     const btnText = elements.generateBtn.querySelector('.btn-text');
     if (btnText) {
-      btnText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Chỉnh sửa`;
+      btnText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> ${I18n.t('generate.editBtn')}`;
     }
-    elements.promptInput.placeholder = `Mô tả thay đổi cho ${data.tagName}. Ví dụ: "Đổi màu nền sang xanh", "Thêm animation fade-in", "Thêm 2 card mới"...`;
+    elements.promptInput.placeholder = I18n.t('prompt.editPlaceholder', { tagName: data.tagName });
 
-    showStatus(`Đã chọn: <${data.tagName}>. Nhập yêu cầu chỉnh sửa.`, 'success');
+    showStatus(I18n.t('status.selectedElement', { tagName: data.tagName }), 'success');
 
     // Turn off inspect mode
     toggleInspectMode();
@@ -585,6 +558,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize
   await init();
 
+  // Language toggle
+  const langToggle = document.getElementById('langToggle');
+  if (langToggle) {
+    const langOptions = langToggle.querySelectorAll('.lang-toggle-option');
+    const langSlider = langToggle.querySelector('.lang-toggle-slider');
+    // Set initial slider position to match detected language
+    if (I18n.getLang() === 'en') {
+      langSlider.style.transform = 'translateX(100%)';
+      langOptions.forEach(o => o.classList.toggle('active', o.dataset.lang === 'en'));
+    }
+    langOptions.forEach(opt => {
+      opt.addEventListener('click', () => {
+        const lang = opt.dataset.lang;
+        I18n.setLang(lang);
+        langOptions.forEach(o => o.classList.toggle('active', o.dataset.lang === lang));
+        langSlider.style.transform = lang === 'en' ? 'translateX(100%)' : 'translateX(0)';
+        // Re-render dynamic content
+        loadPages();
+        loadHistory();
+        clearGhostText();
+        cancelAISuggestion();
+        // Update device label
+        const activeDevice = document.querySelector('.device-btn.active');
+        if (activeDevice) {
+          deviceSizeLabel.textContent = I18n.t('device.' + activeDevice.dataset.device + 'Label');
+        }
+        // Update generate button text if not in edit mode
+        if (!selectedPath) {
+          const btnText = elements.generateBtn.querySelector('.btn-text');
+          if (btnText) {
+            btnText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg> ${I18n.t('generate.btn')}`;
+          }
+        }
+      });
+    });
+  }
+
   // Event Listeners
   elements.newPageBtn.addEventListener('click', createNewPage);
   elements.clearHistory.addEventListener('click', clearHistory);
@@ -606,12 +616,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   elements.netlifyConnectBtn.addEventListener('click', async () => {
     const token = elements.netlifyTokenInput.value.trim();
     if (!token) {
-      showStatus('Vui lòng nhập token', 'error');
+      showStatus(I18n.t('status.tokenRequired'), 'error');
       return;
     }
     await saveNetlifyToken(token);
     hideNetlifyPanel();
-    showStatus('Đã kết nối Netlify', 'success');
+    showStatus(I18n.t('status.netlifyConnected'), 'success');
     // Auto-deploy after connecting
     handleDeploy();
   });
@@ -626,18 +636,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (url && url !== '#') {
       try {
         await navigator.clipboard.writeText(url);
-        showStatus('Đã copy URL', 'success');
+        showStatus(I18n.t('status.urlCopied'), 'success');
       } catch (e) {
-        showStatus('Không thể copy URL', 'error');
+        showStatus(I18n.t('status.urlCopyFailed'), 'error');
       }
     }
   });
   elements.disconnectNetlify.addEventListener('click', async () => {
-    if (!confirm('Ngắt kết nối Netlify? Token sẽ bị xóa.')) return;
+    if (!confirm(I18n.t('confirm.disconnectNetlify'))) return;
     await clearNetlifyToken();
     await clearGlobalNetlifySite();
     hideDeployedUrl();
-    showStatus('Đã ngắt kết nối Netlify', 'info');
+    showStatus(I18n.t('status.netlifyDisconnected'), 'info');
   });
 
   // Link navigation modal event listeners
@@ -708,7 +718,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Device toolbar listeners
   const deviceButtons = document.querySelectorAll('.device-btn');
   const deviceSizeLabel = document.getElementById('deviceSizeLabel');
-  const deviceLabels = { desktop: 'Desktop', tablet: 'Tablet (768px)', mobile: 'Mobile (375px)' };
+  const deviceLabels = { desktop: I18n.t('device.desktopLabel'), tablet: I18n.t('device.tabletLabel'), mobile: I18n.t('device.mobileLabel') };
   
   deviceButtons.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -827,14 +837,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     isConnected = connected;
 
     if (state === 'opening') {
-      showStatus('Đang mở Gemini...', 'info');
+      showStatus(I18n.t('status.geminiOpening'), 'info');
       return;
     }
 
     if (connected) {
-      showStatus('Đã kết nối Gemini', 'success');
+      showStatus(I18n.t('status.geminiConnected'), 'success');
     } else {
-      showStatus('Chưa kết nối Gemini', 'error');
+      showStatus(I18n.t('status.geminiDisconnected'), 'error');
     }
   }
 
@@ -855,7 +865,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Render pages list
   function renderPages(pages) {
     if (pages.length === 0) {
-      elements.pageList.innerHTML = '<div class="empty-state">Chưa có page nào</div>';
+      elements.pageList.innerHTML = '<div class="empty-state">' + I18n.t('status.pagesEmpty') + '</div>';
       return;
     }
 
@@ -867,7 +877,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span class="page-item-icon">${fileIcon}</span>
         <span class="page-item-name" title="${escapeHtml(page.name)}">${escapeHtml(page.name)}</span>
         <span class="page-item-date">${formatDate(page.createdAt)}</span>
-        <button class="page-item-delete" data-id="${page.id}" title="Xóa page">${deleteIcon}</button>
+        <button class="page-item-delete" data-id="${page.id}" title="${I18n.t('page.deleteTitle')}">${deleteIcon}</button>
       </div>
     `).join('');
 
@@ -918,10 +928,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         hideDeployedUrl();
       }
 
-      showStatus(`Đã tạo Page ${pageNumber}`, 'success');
+      showStatus(I18n.t('status.pageCreated', { pageNumber }), 'success');
     } catch (error) {
       console.error('Failed to create page:', error);
-      showStatus('Không thể tạo page mới', 'error');
+      showStatus(I18n.t('status.pageCreateFailed'), 'error');
     }
   }
 
@@ -976,13 +986,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       
     } catch (error) {
       console.error('Failed to select page:', error);
-      showStatus('Không thể chọn page', 'error');
+      showStatus(I18n.t('status.pageSelectFailed'), 'error');
     }
   }
 
   // Delete a page
   async function deletePage(pageId) {
-    if (!confirm('Bạn có chắc muốn xóa page này và toàn bộ lịch sử?')) return;
+    if (!confirm(I18n.t('confirm.deletePage'))) return;
 
     try {
       await htmlDB.deletePage(pageId);
@@ -1003,10 +1013,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadPages();
       }
 
-      showStatus('Đã xóa page', 'info');
+      showStatus(I18n.t('status.pageDeleted'), 'info');
     } catch (error) {
       console.error('Failed to delete page:', error);
-      showStatus('Không thể xóa page', 'error');
+      showStatus(I18n.t('status.pageDeleteFailed'), 'error');
     }
   }
 
@@ -1054,12 +1064,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
     
-    if (diffMins < 1) return 'Vừa xong';
-    if (diffMins < 60) return `${diffMins} phút`;
-    if (diffHours < 24) return `${diffHours} giờ`;
-    if (diffDays < 7) return `${diffDays} ngày`;
-    
-    return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    if (diffMins < 1) return I18n.t('date.justNow');
+    if (diffMins < 60) return I18n.t('date.minutes', { n: diffMins });
+    if (diffHours < 24) return I18n.t('date.hours', { n: diffHours });
+    if (diffDays < 7) return I18n.t('date.days', { n: diffDays });
+
+    return date.toLocaleDateString(I18n.t('date.locale'), { day: '2-digit', month: '2-digit' });
   }
 
   // =====================
@@ -1069,10 +1079,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load history for current page
   async function loadHistory() {
     if (!currentPageId) {
-      elements.historyList.innerHTML = '<div class="empty-state">Chưa có lịch sử</div>';
+      elements.historyList.innerHTML = '<div class="empty-state">' + I18n.t('status.historyEmpty') + '</div>';
       return;
     }
-    
+
     try {
       const history = await htmlDB.getPageHistory(currentPageId);
       renderHistory(history);
@@ -1084,7 +1094,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Render history list
   function renderHistory(history) {
     if (history.length === 0) {
-      elements.historyList.innerHTML = '<div class="empty-state">Chưa có lịch sử</div>';
+      elements.historyList.innerHTML = '<div class="empty-state">' + I18n.t('status.historyEmpty') + '</div>';
       return;
     }
 
@@ -1097,7 +1107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span class="history-item-icon">${fileIcon}</span>
         <span class="history-item-text" title="${escapeHtml(item.prompt)}">${escapeHtml(item.prompt)}</span>
         <span class="history-item-date">${item.date}</span>
-        <button class="history-item-delete" data-id="${item.id}" title="Xóa">${deleteIcon}</button>
+        <button class="history-item-delete" data-id="${item.id}" title="${I18n.t('history.deleteItemTitle')}">${deleteIcon}</button>
       </div>
     `).join('');
 
@@ -1137,12 +1147,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           // User is reverting to an older version
           isReverted = true;
           revertedFromPrompt = item.prompt || '';
-          showStatus(`Đã revert về: "${item.prompt}". Prompt tiếp theo sẽ tiếp tục từ phiên bản này.`, 'success');
+          showStatus(I18n.t('status.revertedTo', { prompt: item.prompt }), 'success');
         } else {
           // User clicked the latest item, not a revert
           isReverted = false;
           revertedFromPrompt = '';
-          showStatus('Đã tải HTML từ lịch sử', 'success');
+          showStatus(I18n.t('status.loadedFromHistory'), 'success');
         }
         
         // Clear any element selection when loading from history
@@ -1156,11 +1166,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (activeItem) activeItem.classList.add('active');
         
       } else {
-        showStatus('Không có dữ liệu HTML trong mục này', 'error');
+        showStatus(I18n.t('status.historyNoData'), 'error');
       }
     } catch (error) {
       console.error('Load history error:', error);
-      showStatus('Không thể tải lịch sử', 'error');
+      showStatus(I18n.t('status.historyLoadFailed'), 'error');
     }
   }
 
@@ -1169,16 +1179,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       await htmlDB.deleteHTML(id);
       await loadHistory();
-      showStatus('Đã xóa', 'info');
+      showStatus(I18n.t('status.historyItemDeleted'), 'info');
     } catch (error) {
-      showStatus('Không thể xóa', 'error');
+      showStatus(I18n.t('status.historyItemDeleteFailed'), 'error');
     }
   }
 
   // Clear all history for current page
   async function clearHistory() {
     if (!currentPageId) return;
-    if (!confirm('Bạn có chắc muốn xóa toàn bộ lịch sử của page này?')) return;
+    if (!confirm(I18n.t('confirm.clearHistory'))) return;
     
     try {
       await htmlDB.clearPageHistory(currentPageId);
@@ -1187,23 +1197,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       isReverted = false;
       revertedFromPrompt = '';
       showEmptyPreview();
-      showStatus('Đã xóa toàn bộ lịch sử', 'info');
+      showStatus(I18n.t('status.historyCleared'), 'info');
     } catch (error) {
-      showStatus('Không thể xóa lịch sử', 'error');
+      showStatus(I18n.t('status.historyClearFailed'), 'error');
     }
   }
 
   // Generate HTML via Gemini
   async function generateHTML(promptOverride) {
     if (!currentPageId) {
-      showStatus('Vui lòng chọn hoặc tạo page trước', 'error');
+      showStatus(I18n.t('status.noPageSelected'), 'error');
       return;
     }
 
     let prompt = (typeof promptOverride === 'string') ? promptOverride : elements.promptInput.value.trim();
     
     if (!prompt) {
-      showStatus('Vui lòng nhập mô tả', 'error');
+      showStatus(I18n.t('status.promptRequired'), 'error');
       return;
     }
 
@@ -1220,7 +1230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Clear and disable prompt input during generation
     elements.promptInput.value = '';
     elements.promptInput.disabled = true;
-    elements.promptInput.placeholder = 'Đang tạo HTML...';
+    elements.promptInput.placeholder = I18n.t('prompt.generatingPlaceholder');
     clearGhostText();
     cancelAISuggestion();
     
@@ -1229,7 +1239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Ensure connection before generating
     if (!isConnected) {
-      showStatus('Đang kết nối Gemini...', 'info');
+      showStatus(I18n.t('status.geminiConnecting'), 'info');
       
       try {
         const result = await new Promise((resolve) => {
@@ -1240,9 +1250,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           elements.generateBtn.classList.remove('loading');
           elements.generateBtn.disabled = false;
           elements.promptInput.disabled = false;
-          elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
+          elements.promptInput.placeholder = I18n.t('prompt.placeholder');
           unlockUI();
-          showStatus('Không thể kết nối Gemini. Vui lòng thử lại.', 'error');
+          showStatus(I18n.t('status.geminiConnectFailed'), 'error');
           return;
         }
         
@@ -1252,9 +1262,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         elements.generateBtn.classList.remove('loading');
         elements.generateBtn.disabled = false;
         elements.promptInput.disabled = false;
-        elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
+        elements.promptInput.placeholder = I18n.t('prompt.placeholder');
         unlockUI();
-        showStatus('Lỗi kết nối: ' + error.message, 'error');
+        showStatus(I18n.t('status.geminiConnectionError', { message: error.message }), 'error');
         return;
       }
     }
@@ -1333,7 +1343,7 @@ RULES:
 
 NEW INNER HTML:`;
         } else {
-          showStatus('Không tìm thấy phần tử đã chọn, sẽ tạo mới toàn bộ', 'warning');
+          showStatus(I18n.t('status.elementNotFound'), 'warning');
           clearElementSelection();
         }
       } catch (e) {
@@ -1342,7 +1352,7 @@ NEW INNER HTML:`;
       }
     }
 
-    showStatus(selectedPath ? 'Đang chỉnh sửa phần tử...' : 'Đang gửi yêu cầu đến Gemini...', 'info');
+    showStatus(selectedPath ? I18n.t('status.editingElement') : I18n.t('status.sendingToGemini'), 'info');
 
     // Send request to background script
     chrome.runtime.sendMessage({
@@ -1360,16 +1370,16 @@ NEW INNER HTML:`;
         elements.generateBtn.classList.remove('loading');
         elements.generateBtn.disabled = false;
         elements.promptInput.disabled = false;
-        elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
+        elements.promptInput.placeholder = I18n.t('prompt.placeholder');
         unlockUI();
-        
+
         // If connection lost, mark as disconnected
         if (response?.error?.includes('kết nối')) {
           isConnected = false;
           updateConnectionStatus(false);
         }
         
-        showStatus(response?.error || 'Không thể kết nối Gemini', 'error');
+        showStatus(response?.error || I18n.t('status.geminiCannotConnect'), 'error');
       }
       // Wait for GENERATION_RESULT message
     });
@@ -1382,8 +1392,8 @@ NEW INNER HTML:`;
     
     // Re-enable prompt input
     elements.promptInput.disabled = false;
-    elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
-    
+    elements.promptInput.placeholder = I18n.t('prompt.placeholder');
+
     // Unlock all UI
     unlockUI();
 
@@ -1463,7 +1473,7 @@ NEW INNER HTML:`;
           console.log('Element edit - extracted:', newContent.substring(0, 200));
 
           if (!newContent || newContent.length < 2) {
-            showStatus('Không thể trích xuất nội dung HTML từ phản hồi AI', 'error');
+            showStatus(I18n.t('status.extractFailed'), 'error');
             return;
           }
 
@@ -1488,16 +1498,16 @@ NEW INNER HTML:`;
             // Reload history
             await loadHistory();
 
-            showStatus('Đã cập nhật phần tử thành công!', 'success');
+            showStatus(I18n.t('status.elementUpdated'), 'success');
 
             // Keep selection active for further edits
             highlightSelectedElement(selectedPath);
           } else {
-            showStatus('Không tìm thấy phần tử để cập nhật', 'error');
+            showStatus(I18n.t('status.elementUpdateNotFound'), 'error');
           }
         } catch (error) {
           console.error('Error updating element:', error);
-          showStatus('Lỗi cập nhật phần tử: ' + error.message, 'error');
+          showStatus(I18n.t('status.elementUpdateError', { message: error.message }), 'error');
         }
       } else {
         // Full HTML replacement (original behavior)
@@ -1519,10 +1529,10 @@ NEW INNER HTML:`;
         // Reload history
         await loadHistory();
         
-        showStatus('Tạo HTML thành công!', 'success');
+        showStatus(I18n.t('status.htmlGenerated'), 'success');
       }
     } else {
-      showStatus(message.error || 'Không thể trích xuất HTML', 'error');
+      showStatus(message.error || I18n.t('status.htmlExtractFailed'), 'error');
     }
   }
   
@@ -1833,8 +1843,8 @@ NEW INNER HTML:`;
       </head>
       <body>
         <div class="icon">🎨</div>
-        <div class="text">Nhập prompt để tạo HTML</div>
-        <div class="subtext">Kết nối với Gemini và bắt đầu sáng tạo</div>
+        <div class="text">${I18n.t('preview.emptyTitle')}</div>
+        <div class="subtext">${I18n.t('preview.emptySubtitle')}</div>
       </body>
       </html>
     `;
@@ -1845,14 +1855,14 @@ NEW INNER HTML:`;
   function refreshPreview() {
     if (currentHTML) {
       updatePreview(currentHTML);
-      showStatus('Đã làm mới preview', 'info');
+      showStatus(I18n.t('status.previewRefreshed'), 'info');
     }
   }
 
   // Open in new tab
   function openInNewTab() {
     if (!currentHTML) {
-      showStatus('Không có HTML để mở', 'error');
+      showStatus(I18n.t('status.noHtmlToOpen'), 'error');
       return;
     }
 
@@ -1864,7 +1874,7 @@ NEW INNER HTML:`;
   // Download HTML
   function downloadHTML() {
     if (!currentHTML) {
-      showStatus('Không có HTML để tải', 'error');
+      showStatus(I18n.t('status.noHtmlToDownload'), 'error');
       return;
     }
 
@@ -1876,21 +1886,21 @@ NEW INNER HTML:`;
     a.click();
     URL.revokeObjectURL(url);
     
-    showStatus('Đã tải xuống HTML', 'success');
+    showStatus(I18n.t('status.htmlDownloaded'), 'success');
   }
 
   // Copy HTML to clipboard
   async function copyHTML() {
     if (!currentHTML) {
-      showStatus('Không có HTML để copy', 'error');
+      showStatus(I18n.t('status.noHtmlToCopy'), 'error');
       return;
     }
 
     try {
       await navigator.clipboard.writeText(currentHTML);
-      showStatus('Đã copy HTML vào clipboard', 'success');
+      showStatus(I18n.t('status.htmlCopied'), 'success');
     } catch (error) {
-      showStatus('Không thể copy HTML', 'error');
+      showStatus(I18n.t('status.htmlCopyFailed'), 'error');
     }
   }
 
@@ -1975,7 +1985,7 @@ NEW INNER HTML:`;
     if (isInspectMode) {
       elements.inspectBtn.classList.add('active');
       elements.previewFrame.parentElement.classList.add('inspect-mode');
-      showStatus('🎯 Chế độ Inspect: Click vào phần tử trong preview để chọn', 'info');
+      showStatus(I18n.t('status.inspectMode'), 'info');
       enableInspectInIframe();
     } else {
       elements.inspectBtn.classList.remove('active');
@@ -2035,11 +2045,11 @@ NEW INNER HTML:`;
     elements.generateBtn.classList.remove('edit-mode');
     const btnText = elements.generateBtn.querySelector('.btn-text');
     if (btnText) {
-      btnText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg> Tạo HTML`;
+      btnText.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg> ${I18n.t('generate.btn')}`;
     }
-    elements.promptInput.placeholder = 'Ví dụ: Tạo trang landing page cho quán cà phê với màu nâu ấm áp, có hero section với hình nền gradient, menu sản phẩm dạng card, và footer với thông tin liên hệ...';
-    
-    showStatus('Đã bỏ chọn phần tử', 'info');
+    elements.promptInput.placeholder = I18n.t('prompt.placeholder');
+
+    showStatus(I18n.t('status.selectionCleared'), 'info');
   }
 
   // =====================
@@ -2372,7 +2382,7 @@ NEW INNER HTML:`;
     const pagesWithContent = allPages.filter(p => p.lastHtml);
 
     if (pagesWithContent.length === 0) {
-      showStatus('Không có trang nào có nội dung để deploy', 'error');
+      showStatus(I18n.t('status.noContentToDeploy'), 'error');
       return;
     }
 
@@ -2382,7 +2392,7 @@ NEW INNER HTML:`;
     }
 
     elements.deployBtn.classList.add('deploying');
-    showStatus(`Đang deploy ${pagesWithContent.length} trang lên Netlify...`, 'info');
+    showStatus(I18n.t('status.deploying', { count: pagesWithContent.length }), 'info');
 
     try {
       // Get or create the single global site
@@ -2390,7 +2400,7 @@ NEW INNER HTML:`;
       let siteUrl = globalNetlifySiteUrl;
 
       if (!siteId) {
-        showStatus('Đang tạo site mới trên Netlify...', 'info');
+        showStatus(I18n.t('status.creatingSite'), 'info');
         const site = await netlifyCreateSite(netlifyToken);
         siteId = site.id;
         siteUrl = site.ssl_url || site.url;
@@ -2405,13 +2415,13 @@ NEW INNER HTML:`;
       }
 
       // Deploy all files
-      showStatus(`Đang upload ${manifest.length} trang...`, 'info');
+      showStatus(I18n.t('status.uploadingPages', { count: manifest.length }), 'info');
       await netlifyDeployMulti(netlifyToken, siteId, fileMap);
 
       elements.deployBtn.classList.remove('deploying');
       elements.deployBtn.classList.add('deployed');
       showDeployedUrl(siteUrl);
-      showStatus(`Deploy thành công! ${manifest.length} trang đã được publish.`, 'success');
+      showStatus(I18n.t('status.deploySuccess', { count: manifest.length }), 'success');
 
     } catch (error) {
       elements.deployBtn.classList.remove('deploying');
@@ -2420,13 +2430,13 @@ NEW INNER HTML:`;
       if (error.message === 'TOKEN_INVALID') {
         await clearNetlifyToken();
         showNetlifyPanel();
-        showStatus('Token không hợp lệ hoặc đã hết hạn. Vui lòng kết nối lại.', 'error');
+        showStatus(I18n.t('status.tokenInvalid'), 'error');
         return;
       }
 
       if (error.message === 'SITE_NOT_FOUND') {
         // Global site was deleted on Netlify, recreate and retry
-        showStatus('Site đã bị xóa, đang tạo lại...', 'info');
+        showStatus(I18n.t('status.siteDeleted'), 'info');
         try {
           const site = await netlifyCreateSite(netlifyToken);
           const newSiteUrl = site.ssl_url || site.url;
@@ -2439,15 +2449,15 @@ NEW INNER HTML:`;
           await netlifyDeployMulti(netlifyToken, site.id, fileMap);
           elements.deployBtn.classList.add('deployed');
           showDeployedUrl(newSiteUrl);
-          showStatus(`Deploy thành công! ${manifest.length} trang đã được publish.`, 'success');
+          showStatus(I18n.t('status.deploySuccess', { count: manifest.length }), 'success');
         } catch (retryError) {
           console.error('Retry deploy error:', retryError);
-          showStatus('Không thể deploy: ' + retryError.message, 'error');
+          showStatus(I18n.t('status.deployFailed', { message: retryError.message }), 'error');
         }
         return;
       }
 
-      showStatus('Lỗi deploy: ' + error.message, 'error');
+      showStatus(I18n.t('status.deployError', { message: error.message }), 'error');
     }
   }
 
@@ -2508,9 +2518,9 @@ NEW INNER HTML:`;
     // Use link innerText for page name, fall back to href-derived name
     const pageName = (linkText && linkText.length > 0 && linkText.length < 100)
       ? linkText
-      : extractPageNameFromHref(href) || 'Trang Mới ' + Date.now();
+      : extractPageNameFromHref(href) || I18n.t('linkModal.newPageFallback') + ' ' + Date.now();
     if (!pageName) {
-      showStatus('Liên kết không hợp lệ', 'info');
+      showStatus(I18n.t('status.invalidLink'), 'info');
       return;
     }
 
@@ -2532,7 +2542,7 @@ NEW INNER HTML:`;
       // Page exists, navigate to it
       await selectPage(matchedPage.id);
       await loadPages();
-      showStatus(`Đã chuyển sang trang "${matchedPage.name}"`, 'success');
+      showStatus(I18n.t('status.navigatedToPage', { name: matchedPage.name }), 'success');
     } else {
       // Page doesn't exist, show confirmation modal
       showLinkModal(pageName);
@@ -2544,7 +2554,7 @@ NEW INNER HTML:`;
     pendingLinkPageName = pageName;
     designContextHTML = currentHTML;
     elements.linkModalPageName.textContent = pageName;
-    elements.linkModalPromptInput.value = `Tạo trang ${pageName}`;
+    elements.linkModalPromptInput.value = I18n.t('linkModal.defaultPrompt', { name: pageName });
     clearModalGhostText();
     cancelAISuggestion();
     elements.linkModal.classList.remove('hidden');
@@ -2569,9 +2579,9 @@ NEW INNER HTML:`;
 
     const pageName = pendingLinkPageName;
     const contextHTML = designContextHTML;
-    const userPrompt = elements.linkModalPromptInput.value.trim() || `Tạo trang ${pageName}`;
+    const userPrompt = elements.linkModalPromptInput.value.trim() || I18n.t('linkModal.defaultPrompt', { name: pageName });
     // Internal instruction appended behind the scenes for Gemini
-    const fullPrompt = `${userPrompt}. Giữ nguyên toàn bộ style, header, footer, nav. Thay nội dung chính thành nội dung phù hợp.`;
+    const fullPrompt = `${userPrompt}${I18n.t('linkModal.promptSuffix')}`;
     hideLinkModal();
 
     try {
@@ -2602,13 +2612,13 @@ NEW INNER HTML:`;
       clearGhostText();
       cancelAISuggestion();
 
-      showStatus(`Đã tạo trang "${pageName}", đang tạo nội dung...`, 'success');
+      showStatus(I18n.t('status.creatingPageContent', { name: pageName }), 'success');
 
       // Auto-trigger generation with full prompt (includes internal instructions)
       generateHTML(fullPrompt);
     } catch (error) {
       console.error('Failed to create linked page:', error);
-      showStatus('Không thể tạo trang mới', 'error');
+      showStatus(I18n.t('status.createLinkedPageFailed'), 'error');
     }
   }
 });

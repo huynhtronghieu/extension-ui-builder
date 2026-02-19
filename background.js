@@ -280,6 +280,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             type: 'SUGGEST_REQUEST',
             text: message.text,
             requestId: message.requestId,
+            suggestLang: message.suggestLang || 'vi',
             conversationId: suggestConversation.conversationId,
             responseId: suggestConversation.responseId,
             choiceId: suggestConversation.choiceId

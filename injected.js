@@ -933,7 +933,8 @@ Start your response with exactly: <!DOCTYPE html>`;
         console.log('Restored suggestConversation from persisted IDs');
       }
 
-      const prompt = `Complete this UI generation prompt in Vietnamese. Return ONLY the completion text (the part after what they typed). Keep it concise (<80 chars). If you cannot complete, return: NONE\n\nUser's partial input: "${text}"`;
+      const langLabel = (persistedIds.suggestLang === 'en') ? 'English' : 'Vietnamese';
+      const prompt = `Complete this UI generation prompt in ${langLabel}. Return ONLY the completion text (the part after what they typed). Keep it concise (<80 chars). If you cannot complete, return: NONE\n\nUser's partial input: "${text}"`;
 
       const url = buildUrl();
       const body = buildSuggestionBody(prompt);
@@ -1019,7 +1020,8 @@ Start your response with exactly: <!DOCTYPE html>`;
       const ids = {
         conversationId: event.data.conversationId || '',
         responseId: event.data.responseId || '',
-        choiceId: event.data.choiceId || ''
+        choiceId: event.data.choiceId || '',
+        suggestLang: event.data.suggestLang || 'vi'
       };
       suggestCompletion(event.data.text, event.data.requestId, ids);
     }
