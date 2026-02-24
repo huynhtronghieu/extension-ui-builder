@@ -1311,8 +1311,9 @@ CRITICAL RULES:
 5. Keep ALL existing HTML structure, class names, ids, and attributes unchanged unless the request specifically asks to change them
 6. Keep ALL existing content (text, emojis, links) unless the request specifically asks to change them
 7. Do NOT reorganize, reformat, or "clean up" any code
-8. Return the COMPLETE HTML file starting with <!DOCTYPE html>
-9. The output must be ONLY HTML code, no explanation, no markdown`;
+8. IMMPORTANT: Include 3rd-parties necessary link, e.g. Bootstrap JS, AOS JS, Font Awesome, etc.
+9. Return the COMPLETE HTML file starting with <!DOCTYPE html>
+10. The output must be ONLY HTML code, no explanation, no markdown`;
       
       isModification = true;
       console.log('Sending modification prompt with HTML context, length:', currentHTML.length);
@@ -1337,6 +1338,7 @@ REQUEST: ${prompt}
 
 RULES:
 - Return ONLY the new innerHTML (content inside <${elementTag}>)
+- IMMPORTANT: Include 3rd-parties necessary link, e.g. Bootstrap JS, AOS JS, Font Awesome, etc.
 - DO NOT include the outer <${elementTag}> tags
 - DO NOT explain, just return HTML
 - Start your response with a < character
@@ -1439,9 +1441,6 @@ NEW INNER HTML:`;
     
     // Fix markdown-formatted URLs that Gemini sometimes generates
     if (html) html = fixMarkdownUrls(html);
-
-    // Fix [suspicious link removed] by detecting libraries and injecting correct CDN links
-    if (html) html = fixSuspiciousLinks(html);
 
     // Fix HTML entities inside <script> tags (Gemini encodes template literals)
     if (html) html = fixEncodedScripts(html);
@@ -1659,57 +1658,6 @@ NEW INNER HTML:`;
     return html.replace(/<style(?:\s[^>]*)?>[\s\S]*?<\/style>/gi, (styleBlock) => {
       return styleBlock.replace(/\/\\\*/g, '/*').replace(/\\\*\//g, '*/');
     });
-  }
-
-  // Fix "[suspicious link removed]" placeholders that Gemini/Cloudflare may insert
-  // Detects which libraries are used in the HTML and adds the correct CDN links
-  function fixSuspiciousLinks(html) {
-    if (!html || !html.includes('[suspicious link removed]')) return html;
-
-    // Remove broken link/script tags containing [suspicious link removed]
-    html = html.replace(/<link[^>]*href\s*=\s*["'][^"']*suspicious link removed[^"']*["'][^>]*\/?>/gi, '');
-    html = html.replace(/<script[^>]*src\s*=\s*["'][^"']*suspicious link removed[^"']*["'][^>]*>[\s\S]*?<\/script>/gi, '');
-
-    // Detect needed libraries from class usage and add correct CDN links
-    const cdnLinks = [];
-
-    // Font Awesome
-    if (/class\s*=\s*"[^"]*(?:fa-solid|fa-regular|fa-brands|fa-light|fa-thin|fa-duotone|fas\s|far\s|fab\s|fal\s)\b/i.test(html) ||
-        /class\s*=\s*"[^"]*\bfa\s+fa-/i.test(html)) {
-      cdnLinks.push('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">');
-    }
-
-    // Bootstrap CSS
-    if (/class\s*=\s*"[^"]*(?:btn-primary|btn-secondary|btn-success|btn-danger|container-fluid|navbar-expand|col-md-|col-lg-|col-sm-|modal-dialog|carousel-item|accordion-item)\b/i.test(html)) {
-      cdnLinks.push('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">');
-    }
-
-    // Bootstrap JS (if Bootstrap components are used)
-    if (/\b(?:data-bs-toggle|data-bs-target|data-bs-dismiss)\b/i.test(html)) {
-      cdnLinks.push('<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"><\/script>');
-    }
-
-    // AOS (Animate On Scroll)
-    if (/\bdata-aos\s*=/i.test(html)) {
-      cdnLinks.push('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css">');
-      cdnLinks.push('<script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"><\/script>');
-    }
-
-    // Animate.css
-    if (/class\s*=\s*"[^"]*\banimate__/i.test(html)) {
-      cdnLinks.push('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">');
-    }
-
-    // Inject detected CDN links before </head>
-    if (cdnLinks.length > 0) {
-      const headClose = html.indexOf('</head>');
-      if (headClose !== -1) {
-        html = html.substring(0, headClose) + '\n' + cdnLinks.join('\n') + '\n' + html.substring(headClose);
-      }
-      console.log('fixSuspiciousLinks: injected CDN links:', cdnLinks);
-    }
-
-    return html;
   }
 
   // Extract inner content from Gemini response (for element edit mode)

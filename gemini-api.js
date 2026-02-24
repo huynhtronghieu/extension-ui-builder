@@ -54,6 +54,7 @@ QUAN TRỌNG - QUY TẮC BẮT BUỘC:
 6. Thiết kế phải responsive và đẹp mắt
 7. Sử dụng Google Fonts cho font chữ phù hợp với chủ đề
 8. KHÔNG sử dụng emoji icon, CHỈ sử dụng fa-icon (hoặc có thể dùng gradient, hoặc inline SVG)
+9. IMMPORTANT: Include 3rd-parties necessary link, e.g. Bootstrap JS, AOS JS, Font Awesome, etc.
 
 Trả về NGAY mã HTML:`;
   }

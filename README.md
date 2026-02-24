@@ -127,7 +127,6 @@ Gemini đôi khi sinh HTML bị lỗi encoding. Pipeline tự động sửa trư
 | Hàm | Sửa lỗi |
 |---|---|
 | `fixMarkdownUrls` | URL bị wrap markdown `[url](url)` trong HTML attribute và `<script>` |
-| `fixSuspiciousLinks` | `[suspicious link removed]` → detect library → inject CDN (Font Awesome, Bootstrap, AOS...) |
 | `fixEncodedScripts` | Entity-encoded JS trong `<script>` (`&lt;`, `&amp;`...) → decode, escape `</script>` safety |
 | `fixBackslashAmpersands` | `\&amp;` và `\&` trong URL attribute → `&` (skip script blocks) |
 | `fixEscapedCSS` | `/\*` → `/*` và `\*/` → `*/` trong `<style>` blocks |
@@ -337,7 +336,6 @@ Gemini occasionally generates HTML with encoding errors. The pipeline auto-fixes
 | Function | Fixes |
 |---|---|
 | `fixMarkdownUrls` | URLs wrapped in markdown syntax `[url](url)` inside HTML attributes and `<script>` tags |
-| `fixSuspiciousLinks` | `[suspicious link removed]` → detects library → injects CDN (Font Awesome, Bootstrap, AOS…) |
 | `fixEncodedScripts` | Entity-encoded JS inside `<script>` (`&lt;`, `&amp;`…) → decode, escape `</script>` safely |
 | `fixBackslashAmpersands` | `\&amp;` and `\&` in URL attributes → `&` (skips script blocks) |
 | `fixEscapedCSS` | `/\*` → `/*` and `\*/` → `*/` inside `<style>` blocks |

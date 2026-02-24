@@ -128,6 +128,7 @@ Technical specs:
 - Modern, clean UI
 - Modern fonts (Google Fonts)
 - DO NOT use emoji icons, ONLY USE fa-icon (or use CSS gradients or inline SVG instead)
+- IMMPORTANT: Include 3rd-parties necessary link, e.g. Bootstrap JS, AOS JS, Font Awesome, etc.
 
 Start your response with exactly: <!DOCTYPE html>`;
   }
