@@ -1,0 +1,474 @@
+{
+  "extName": {
+    "message": "UI Builder with Gemini AI"
+  },
+  "extDescription": {
+    "message": "Create HTML with Gemini AI and preview live"
+  },
+  "app_title": {
+    "message": "UI Builder with Gemini AI"
+  },
+  "deploy_button": {
+    "message": "Deploy"
+  },
+  "deploy_title": {
+    "message": "Deploy to Netlify"
+  },
+  "preview_heading": {
+    "message": "Preview"
+  },
+  "inspect_title": {
+    "message": "Inspect & Select element"
+  },
+  "refresh_title": {
+    "message": "Refresh"
+  },
+  "openTab_title": {
+    "message": "Open in new tab"
+  },
+  "download_title": {
+    "message": "Download"
+  },
+  "copyHtml_title": {
+    "message": "Copy HTML"
+  },
+  "netlify_label": {
+    "message": "Connect Netlify to deploy"
+  },
+  "netlify_step1": {
+    "message": "Step 1: Open Netlify"
+  },
+  "netlify_step1Hint": {
+    "message": "Create token under Personal Access Tokens"
+  },
+  "netlify_step2Placeholder": {
+    "message": "Step 2: Paste token here..."
+  },
+  "netlify_connect": {
+    "message": "Connect"
+  },
+  "netlify_closeTitle": {
+    "message": "Close"
+  },
+  "netlify_liveLabel": {
+    "message": "Live"
+  },
+  "netlify_copyUrlTitle": {
+    "message": "Copy URL"
+  },
+  "netlify_disconnectTitle": {
+    "message": "Disconnect Netlify"
+  },
+  "editing_label": {
+    "message": "Editing:"
+  },
+  "editing_clearTitle": {
+    "message": "Deselect"
+  },
+  "device_desktop": {
+    "message": "Desktop (100%)"
+  },
+  "device_tablet": {
+    "message": "Tablet (768px)"
+  },
+  "device_mobile": {
+    "message": "Mobile (375px)"
+  },
+  "device_desktopLabel": {
+    "message": "Desktop"
+  },
+  "device_tabletLabel": {
+    "message": "Tablet (768px)"
+  },
+  "device_mobileLabel": {
+    "message": "Mobile (375px)"
+  },
+  "pages_heading": {
+    "message": "Pages"
+  },
+  "pages_newTitle": {
+    "message": "Create new page"
+  },
+  "pages_newBtn": {
+    "message": "New"
+  },
+  "history_heading": {
+    "message": "History"
+  },
+  "history_clearTitle": {
+    "message": "Clear history"
+  },
+  "prompt_heading": {
+    "message": "Describe HTML"
+  },
+  "prompt_editModeLabel": {
+    "message": "Element edit mode"
+  },
+  "prompt_placeholder": {
+    "message": "E.g.: Create a landing page for a coffee shop with warm brown tones, a hero section with gradient background, product cards menu, and a footer with contact info..."
+  },
+  "prompt_editPlaceholder": {
+    "message": "Describe changes for <$tagName$>. E.g.: \"Change background to blue\", \"Add fade-in animation\", \"Add 2 new cards\"...",
+    "placeholders": {
+      "tagName": {
+        "content": "$1"
+      }
+    }
+  },
+  "prompt_generatingPlaceholder": {
+    "message": "Generating HTML..."
+  },
+  "model_title": {
+    "message": "AI mode"
+  },
+  "model_fast": {
+    "message": "Fast"
+  },
+  "model_thinking": {
+    "message": "Think"
+  },
+  "generate_btn": {
+    "message": "Generate"
+  },
+  "generate_loading": {
+    "message": "Generating..."
+  },
+  "generate_editBtn": {
+    "message": "Edit"
+  },
+  "linkModal_title": {
+    "message": "Create new page"
+  },
+  "linkModal_descBefore": {
+    "message": "Page "
+  },
+  "linkModal_descAfter": {
+    "message": " does not exist."
+  },
+  "linkModal_descPrompt": {
+    "message": "Describe the content you want to create:"
+  },
+  "linkModal_placeholder": {
+    "message": "E.g.: About page with company info, team, vision..."
+  },
+  "linkModal_cancel": {
+    "message": "Cancel"
+  },
+  "linkModal_confirm": {
+    "message": "Create page"
+  },
+  "linkModal_defaultPrompt": {
+    "message": "Create page $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "linkModal_promptSuffix": {
+    "message": ". Keep all existing styles, header, footer, nav. Replace main content with appropriate content."
+  },
+  "linkModal_newPageFallback": {
+    "message": "New Page"
+  },
+  "status_geminiConnected": {
+    "message": "Connected to Gemini"
+  },
+  "status_geminiDisconnected": {
+    "message": "Not connected to Gemini"
+  },
+  "status_geminiOpening": {
+    "message": "Opening Gemini..."
+  },
+  "status_geminiConnecting": {
+    "message": "Connecting to Gemini..."
+  },
+  "status_geminiConnectFailed": {
+    "message": "Cannot connect to Gemini. Please try again."
+  },
+  "status_geminiConnectionError": {
+    "message": "Connection error: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_geminiCannotConnect": {
+    "message": "Cannot connect to Gemini"
+  },
+  "status_tokenRequired": {
+    "message": "Please enter a token"
+  },
+  "status_netlifyConnected": {
+    "message": "Connected to Netlify"
+  },
+  "status_urlCopied": {
+    "message": "URL copied"
+  },
+  "status_urlCopyFailed": {
+    "message": "Cannot copy URL"
+  },
+  "status_netlifyDisconnected": {
+    "message": "Disconnected from Netlify"
+  },
+  "status_pageCreated": {
+    "message": "Created Page $pageNumber$",
+    "placeholders": {
+      "pageNumber": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_pageCreateFailed": {
+    "message": "Cannot create new page"
+  },
+  "status_pageSelectFailed": {
+    "message": "Cannot select page"
+  },
+  "status_pageDeleted": {
+    "message": "Page deleted"
+  },
+  "status_pageDeleteFailed": {
+    "message": "Cannot delete page"
+  },
+  "status_pagesEmpty": {
+    "message": "No pages yet"
+  },
+  "status_historyEmpty": {
+    "message": "No history yet"
+  },
+  "status_historyNoData": {
+    "message": "No HTML data in this entry"
+  },
+  "status_historyLoadFailed": {
+    "message": "Cannot load history"
+  },
+  "status_historyItemDeleted": {
+    "message": "Deleted"
+  },
+  "status_historyItemDeleteFailed": {
+    "message": "Cannot delete"
+  },
+  "status_historyCleared": {
+    "message": "All history cleared"
+  },
+  "status_historyClearFailed": {
+    "message": "Cannot clear history"
+  },
+  "status_noPageSelected": {
+    "message": "Please select or create a page first"
+  },
+  "status_promptRequired": {
+    "message": "Please enter a description"
+  },
+  "status_editingElement": {
+    "message": "Editing element..."
+  },
+  "status_sendingToGemini": {
+    "message": "Sending request to Gemini..."
+  },
+  "status_elementNotFound": {
+    "message": "Selected element not found, will regenerate entire page"
+  },
+  "status_extractFailed": {
+    "message": "Cannot extract HTML content from AI response"
+  },
+  "status_elementUpdated": {
+    "message": "Element updated successfully!"
+  },
+  "status_elementUpdateNotFound": {
+    "message": "Element not found for update"
+  },
+  "status_elementUpdateError": {
+    "message": "Element update error: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_htmlGenerated": {
+    "message": "HTML generated successfully!"
+  },
+  "status_htmlExtractFailed": {
+    "message": "Cannot extract HTML"
+  },
+  "status_previewRefreshed": {
+    "message": "Preview refreshed"
+  },
+  "status_noHtmlToOpen": {
+    "message": "No HTML to open"
+  },
+  "status_noHtmlToDownload": {
+    "message": "No HTML to download"
+  },
+  "status_htmlDownloaded": {
+    "message": "HTML downloaded"
+  },
+  "status_noHtmlToCopy": {
+    "message": "No HTML to copy"
+  },
+  "status_htmlCopied": {
+    "message": "HTML copied to clipboard"
+  },
+  "status_htmlCopyFailed": {
+    "message": "Cannot copy HTML"
+  },
+  "status_inspectMode": {
+    "message": "\ud83c\udfaf Inspect Mode: Click an element in the preview to select it"
+  },
+  "status_selectionCleared": {
+    "message": "Selection cleared"
+  },
+  "status_noContentToDeploy": {
+    "message": "No pages with content to deploy"
+  },
+  "status_deploying": {
+    "message": "Deploying $count$ pages to Netlify...",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_creatingSite": {
+    "message": "Creating new site on Netlify..."
+  },
+  "status_uploadingPages": {
+    "message": "Uploading $count$ pages...",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_deploySuccess": {
+    "message": "Deploy successful! $count$ pages published.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_tokenInvalid": {
+    "message": "Token is invalid or expired. Please reconnect."
+  },
+  "status_siteDeleted": {
+    "message": "Site was deleted, recreating..."
+  },
+  "status_deployFailed": {
+    "message": "Cannot deploy: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_deployError": {
+    "message": "Deploy error: $message$",
+    "placeholders": {
+      "message": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_invalidLink": {
+    "message": "Invalid link"
+  },
+  "status_navigatedToPage": {
+    "message": "Switched to page \"$name$\"",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_creatingPageContent": {
+    "message": "Created page \"$name$\", generating content...",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_createLinkedPageFailed": {
+    "message": "Cannot create new page"
+  },
+  "status_selectedElement": {
+    "message": "Selected: <$tagName$>. Enter edit request.",
+    "placeholders": {
+      "tagName": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_revertedTo": {
+    "message": "Reverted to: \"$prompt$\". Next prompt will continue from this version.",
+    "placeholders": {
+      "prompt": {
+        "content": "$1"
+      }
+    }
+  },
+  "status_loadedFromHistory": {
+    "message": "Loaded HTML from history"
+  },
+  "confirm_disconnectNetlify": {
+    "message": "Disconnect Netlify? Token will be removed."
+  },
+  "confirm_deletePage": {
+    "message": "Are you sure you want to delete this page and all its history?"
+  },
+  "confirm_clearHistory": {
+    "message": "Are you sure you want to clear all history for this page?"
+  },
+  "preview_emptyTitle": {
+    "message": "Enter a prompt to generate HTML"
+  },
+  "preview_emptySubtitle": {
+    "message": "Connect to Gemini and start creating"
+  },
+  "date_justNow": {
+    "message": "Just now"
+  },
+  "date_minutes": {
+    "message": "$n$m ago",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "date_hours": {
+    "message": "$n$h ago",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "date_days": {
+    "message": "$n$d ago",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "date_locale": {
+    "message": "en-US"
+  },
+  "page_deleteTitle": {
+    "message": "Delete page"
+  },
+  "history_deleteItemTitle": {
+    "message": "Delete"
+  },
+  "ai_suggestSystemPrompt": {
+    "message": "You are an autocomplete assistant for a UI generation tool. Complete the user's partial English prompt. Return ONLY the completion text (the part after what they typed). Keep it concise (<80 chars). If you cannot complete, return: NONE"
+  },
+  "ai_suggestLang": {
+    "message": "English"
+  }
+}
